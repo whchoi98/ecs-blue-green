@@ -1,9 +1,6 @@
 {
   "name": "ecs-blue-green",
   "version": "0.1.0",
-  "bin": {
-    "ecs-blue-green": "bin/ecs-blue-green.js"
-  },
   "scripts": {
     "build": "tsc",
     "watch": "tsc -w",
