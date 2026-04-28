@@ -45,12 +45,10 @@ export class BgTestComputeStack extends cdk.Stack {
   private readonly computeSubnets: ec2.ISubnet[];
   private readonly imageTag: string;
   private readonly imageUri: string;
-  private readonly resourceTags: Record<string, string>;
 
   constructor(scope: Construct, id: string, props: BgTestComputeStackProps) {
     super(scope, id, props);
     this.color = props.color;
-    this.resourceTags = { ...commonTags(), Color: props.color };
     this.imageTag = props.color;
     this.imageUri = `${props.ecrStack.repository.repositoryUri}:${this.imageTag}`;
 
@@ -274,6 +272,8 @@ export class BgTestComputeStack extends cdk.Stack {
       ],
     });
 
+    // Task role intentionally has no policies: the app communicates only with Aurora (TCP/3306)
+    // and Redis (TCP/6379) via VPC, no AWS SDK calls from container runtime.
     const taskRole = new iam.Role(this, 'EcsEc2TaskRole', { assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com') });
     const execRole = new iam.Role(this, 'EcsEc2ExecRole', {
       assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
@@ -290,6 +290,7 @@ export class BgTestComputeStack extends cdk.Stack {
     const logs1 = new logs.LogGroup(this, 'EcsEc2Logs', { logGroupName: `/ecs/bg-ecsec2-${this.color}`, retention: logs.RetentionDays.ONE_WEEK, removalPolicy: cdk.RemovalPolicy.DESTROY });
     const container = td.addContainer('app', {
       image: ecs.ContainerImage.fromEcrRepository(props.ecrStack.repository, this.imageTag),
+      // 1 GiB per task allows ~14 tasks per t4g.xlarge (16 GiB) host while leaving headroom for ECS agent + system
       memoryLimitMiB: 1024,
       essential: true,
       logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'app', logGroup: logs1 }),
@@ -317,6 +318,8 @@ export class BgTestComputeStack extends cdk.Stack {
     props.dataStack.dbSecurityGroup.addIngressRule(sg, ec2.Port.tcp(3306), 'Fargate to Aurora', true);
     props.dataStack.redisSecurityGroup.addIngressRule(sg, ec2.Port.tcp(6379), 'Fargate to Redis', true);
 
+    // Task role intentionally has no policies: the app communicates only with Aurora (TCP/3306)
+    // and Redis (TCP/6379) via VPC, no AWS SDK calls from container runtime.
     const taskRole = new iam.Role(this, 'EcsFgTaskRole', { assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com') });
     const execRole = new iam.Role(this, 'EcsFgExecRole', {
       assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
