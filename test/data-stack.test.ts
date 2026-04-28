@@ -58,4 +58,16 @@ describe('BgTestDataStack', () => {
     t.resourceCountIs('AWS::RDS::DBSubnetGroup', 1);
     t.resourceCountIs('AWS::ElastiCache::SubnetGroup', 1);
   });
+
+  it('creates 2 security groups (Aurora + Redis)', () => {
+    const t = synthData();
+    t.resourceCountIs('AWS::EC2::SecurityGroup', 2);
+  });
+
+  it('Redis subnet group is named bg-redis-subnet-group', () => {
+    const t = synthData();
+    t.hasResourceProperties('AWS::ElastiCache::SubnetGroup', {
+      CacheSubnetGroupName: 'bg-redis-subnet-group',
+    });
+  });
 });
