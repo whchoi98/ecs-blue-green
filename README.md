@@ -35,6 +35,7 @@ npx cdk bootstrap aws://$(aws sts get-caller-identity --query Account --output t
 | activeColor | blue | CF origin 색상 |
 | includeSecondaryCidr | false | 10.1.0.0/16 secondary CIDR 추가 |
 | includeGreen | false | GreenStack 배포 |
+| cloudFrontPrefixListId | pl-22a6434b | CloudFront origin-facing managed prefix list (ap-northeast-2 default; change for other regions) |
 
 ## Tests
 

@@ -2,7 +2,6 @@ import * as cdk from 'aws-cdk-lib';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
-import * as elbv2_targets from 'aws-cdk-lib/aws-elasticloadbalancingv2-targets';
 import * as autoscaling from 'aws-cdk-lib/aws-autoscaling';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as logs from 'aws-cdk-lib/aws-logs';
@@ -112,6 +111,7 @@ export class BgTestComputeStack extends cdk.Stack {
       vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
     });
     cdk.Tags.of(alb).add('Name', `bg-alb-${workload}-${this.color}`);
+    Object.entries(commonTags()).forEach(([k, v]) => cdk.Tags.of(alb).add(k, v));
 
     const tg = new elbv2.ApplicationTargetGroup(this, `${workload}Tg`, {
       vpc: opts.vpc,
@@ -186,7 +186,7 @@ export class BgTestComputeStack extends cdk.Stack {
     );
 
     const lt = new ec2.LaunchTemplate(this, 'Ec2AsgLt', {
-      instanceType: ec2.InstanceType.of(ec2.InstanceClass.T4G, ec2.InstanceSize.XLARGE),
+      instanceType: new ec2.InstanceType(LAB_CONFIG.compute.ec2InstanceType),
       machineImage: ec2.MachineImage.latestAmazonLinux2023({ cpuType: ec2.AmazonLinuxCpuType.ARM_64 }),
       role,
       securityGroup: sg,
@@ -238,7 +238,7 @@ export class BgTestComputeStack extends cdk.Stack {
     hostUserData.addCommands(`echo "ECS_CLUSTER=${cluster.clusterName}" >> /etc/ecs/ecs.config`);
 
     const hostLt = new ec2.LaunchTemplate(this, 'EcsHostLt', {
-      instanceType: ec2.InstanceType.of(ec2.InstanceClass.T4G, ec2.InstanceSize.XLARGE),
+      instanceType: new ec2.InstanceType(LAB_CONFIG.compute.ecsHostInstanceType),
       machineImage: ecs.EcsOptimizedImage.amazonLinux2023(ecs.AmiHardwareType.ARM),
       role: hostRole,
       securityGroup: hostSg,

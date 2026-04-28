@@ -44,6 +44,11 @@ export class BgTestNetworkStack extends cdk.Stack {
       : [];
 
     this.addVpcEndpoints();
+
+    new cdk.CfnOutput(this, 'VpcId', {
+      value: this.vpc.vpcId,
+      exportName: 'BgTestVpcId',
+    });
   }
 
   private buildSecondaryCidrSubnets(): ec2.ISubnet[] {
