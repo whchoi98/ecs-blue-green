@@ -12,10 +12,10 @@ function synth(props: { includeSecondaryCidr?: boolean } = {}) {
 }
 
 describe('BgTestNetworkStack', () => {
-  it('creates VPC with 10.0.0.0/16 and Name tag test-vpc', () => {
+  it('creates VPC with 10.1.0.0/16 and Name tag test-vpc', () => {
     const t = synth();
     t.hasResourceProperties('AWS::EC2::VPC', {
-      CidrBlock: '10.0.0.0/16',
+      CidrBlock: '10.1.0.0/16',
       Tags: Match.arrayWith([{ Key: 'Name', Value: 'test-vpc' }]),
     });
   });
@@ -34,7 +34,7 @@ describe('BgTestNetworkStack subnets', () => {
 
   it('adds secondary CIDR association when includeSecondaryCidr=true', () => {
     const t = synth({ includeSecondaryCidr: true });
-    t.hasResourceProperties('AWS::EC2::VPCCidrBlock', { CidrBlock: '10.1.0.0/16' });
+    t.hasResourceProperties('AWS::EC2::VPCCidrBlock', { CidrBlock: '10.2.0.0/16' });
   });
 
   it('creates 10 subnets when secondary CIDR enabled (8 + private2 ×2)', () => {
@@ -42,10 +42,10 @@ describe('BgTestNetworkStack subnets', () => {
     t.resourceCountIs('AWS::EC2::Subnet', 10);
   });
 
-  it('private2-a uses 10.1.0.0/22 and private2-b uses 10.1.4.0/22', () => {
+  it('private2-a uses 10.2.0.0/22 and private2-b uses 10.2.4.0/22', () => {
     const t = synth({ includeSecondaryCidr: true });
-    t.hasResourceProperties('AWS::EC2::Subnet', { CidrBlock: '10.1.0.0/22' });
-    t.hasResourceProperties('AWS::EC2::Subnet', { CidrBlock: '10.1.4.0/22' });
+    t.hasResourceProperties('AWS::EC2::Subnet', { CidrBlock: '10.2.0.0/22' });
+    t.hasResourceProperties('AWS::EC2::Subnet', { CidrBlock: '10.2.4.0/22' });
   });
 });
 

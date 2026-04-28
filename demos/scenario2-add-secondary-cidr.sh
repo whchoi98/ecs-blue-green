@@ -15,7 +15,7 @@ printf '%b' "$RESET"
 echo
 hr '=' "$W$BOLD"
 echo
-typewrite "초기 /24 서브넷의 IP 부족을 secondary CIDR (10.1.0.0/16) 추가로 해결" 0.01
+typewrite "초기 /24 서브넷의 IP 부족을 secondary CIDR (10.2.0.0/16) 추가로 해결" 0.01
 echo; echo
 pause_key
 
@@ -51,12 +51,12 @@ aws ec2 describe-vpcs --vpc-ids "$VPC_ID" \
   --query "Vpcs[0].CidrBlockAssociationSet[].[CidrBlock,CidrBlockState.State]" --output table
 echo
 echo "  ${C}private-2 서브넷:${RESET}"
-aws ec2 describe-subnets --filters "Name=vpc-id,Values=${VPC_ID}" "Name=cidr-block,Values=10.1.0.0/22,10.1.4.0/22" \
+aws ec2 describe-subnets --filters "Name=vpc-id,Values=${VPC_ID}" "Name=cidr-block,Values=10.2.0.0/22,10.2.4.0/22" \
   --query "Subnets[].[SubnetId,CidrBlock,AvailableIpAddressCount,AvailabilityZone]" --output table
 echo
 echo "  ${C}라우팅 테이블 NAT 연결 확인:${RESET}"
 aws ec2 describe-route-tables --filters "Name=vpc-id,Values=${VPC_ID}" \
-  --query "RouteTables[?Routes[?contains(@.DestinationCidrBlock || \`\`, '10.1')]].[RouteTableId,Tags[?Key=='Name']|[0].Value]" \
+  --query "RouteTables[?Routes[?contains(@.DestinationCidrBlock || \`\`, '10.2')]].[RouteTableId,Tags[?Key=='Name']|[0].Value]" \
   --output table
 pause_key
 
@@ -64,9 +64,9 @@ pause_key
 print_step 4 4 "변경 요약"
 hr '=' "$G$BOLD"
 echo
-printf "  %b✓ Secondary CIDR 10.1.0.0/16 added%b\n" "$G$BOLD" "$RESET"
-printf "  %b✓ private-2-a (10.1.0.0/22) created%b\n" "$G$BOLD" "$RESET"
-printf "  %b✓ private-2-b (10.1.4.0/22) created%b\n" "$G$BOLD" "$RESET"
+printf "  %b✓ Secondary CIDR 10.2.0.0/16 added%b\n" "$G$BOLD" "$RESET"
+printf "  %b✓ private-2-a (10.2.0.0/22) created%b\n" "$G$BOLD" "$RESET"
+printf "  %b✓ private-2-b (10.2.4.0/22) created%b\n" "$G$BOLD" "$RESET"
 echo
 printf "  %b다음 단계 (Phase 2): Green stack을 private-2 서브넷에 배포 → CF origin 전환%b\n" "$D" "$RESET"
 echo
