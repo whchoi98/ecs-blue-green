@@ -2,7 +2,7 @@ import * as cdk from 'aws-cdk-lib';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import { Construct } from 'constructs';
-import { commonTags } from './config';
+import { LAB_CONFIG, commonTags } from './config';
 import { BgTestComputeStack } from './compute-stack';
 
 export interface BgTestCfStackProps extends cdk.StackProps {
@@ -26,27 +26,20 @@ export class BgTestCfStack extends cdk.Stack {
       originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER,
     };
 
-    const ec2asgOrigin = new origins.HttpOrigin(active.ec2AsgAlb.loadBalancerDnsName, {
-      protocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY,
-      httpPort: 80,
-      customHeaders: { 'X-Custom-Secret': active.ec2AsgSecret },
-      readTimeout: cdk.Duration.seconds(30),
-    });
-    const ecsec2Origin = new origins.HttpOrigin(active.ecsEc2Alb.loadBalancerDnsName, {
-      protocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY,
-      httpPort: 80,
-      customHeaders: { 'X-Custom-Secret': active.ecsEc2Secret },
-      readTimeout: cdk.Duration.seconds(30),
-    });
-    const ecsfgOrigin = new origins.HttpOrigin(active.ecsFgAlb.loadBalancerDnsName, {
-      protocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY,
-      httpPort: 80,
-      customHeaders: { 'X-Custom-Secret': active.ecsFgSecret },
-      readTimeout: cdk.Duration.seconds(30),
-    });
+    const makeAlbOrigin = (dnsName: string, secret: string) =>
+      new origins.HttpOrigin(dnsName, {
+        protocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY,
+        httpPort: 80,
+        customHeaders: { 'X-Custom-Secret': secret },
+        readTimeout: cdk.Duration.seconds(30),
+      });
+
+    const ec2asgOrigin = makeAlbOrigin(active.ec2AsgAlb.loadBalancerDnsName, active.ec2AsgSecret);
+    const ecsec2Origin = makeAlbOrigin(active.ecsEc2Alb.loadBalancerDnsName, active.ecsEc2Secret);
+    const ecsfgOrigin  = makeAlbOrigin(active.ecsFgAlb.loadBalancerDnsName,  active.ecsFgSecret);
 
     this.distribution = new cloudfront.Distribution(this, 'Cf', {
-      comment: `bg-test-cf (active=${props.activeColor})`,
+      comment: `${LAB_CONFIG.resourcePrefix}-test-cf (active=${props.activeColor})`,
       priceClass: cloudfront.PriceClass.PRICE_CLASS_200,
       defaultBehavior: { origin: ec2asgOrigin, ...baseBehavior },
       additionalBehaviors: {
@@ -55,7 +48,7 @@ export class BgTestCfStack extends cdk.Stack {
         '/ecs-fg/*':  { origin: ecsfgOrigin,  ...baseBehavior },
       },
     });
-    cdk.Tags.of(this.distribution).add('Name', 'bg-cf');
+    cdk.Tags.of(this.distribution).add('Name', `${LAB_CONFIG.resourcePrefix}-cf`);
     Object.entries(commonTags()).forEach(([k, v]) => cdk.Tags.of(this.distribution).add(k, v));
 
     new cdk.CfnOutput(this, 'CfDomain', {
