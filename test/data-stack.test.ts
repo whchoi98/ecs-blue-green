@@ -26,10 +26,10 @@ describe('BgTestDataStack', () => {
     });
   });
 
-  it('creates 2 DB instances (Writer + Reader) of class db.t4g.xlarge', () => {
+  it('creates 2 DB instances (Writer + Reader) of class db.t4g.large', () => {
     const t = synthData();
     t.resourceCountIs('AWS::RDS::DBInstance', 2);
-    t.hasResourceProperties('AWS::RDS::DBInstance', { DBInstanceClass: 'db.t4g.xlarge' });
+    t.hasResourceProperties('AWS::RDS::DBInstance', { DBInstanceClass: 'db.t4g.large' });
   });
 
   it('creates Secrets Manager secret for DB password', () => {
