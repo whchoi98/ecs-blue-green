@@ -22,7 +22,7 @@ export class BgTestEcrStack extends cdk.Stack {
     });
 
     Object.entries(commonTags()).forEach(([k, v]) => cdk.Tags.of(this.repository).add(k, v));
-    cdk.Tags.of(this.repository).add('Name', 'bg-ecr');
+    cdk.Tags.of(this.repository).add('Name', `${LAB_CONFIG.resourcePrefix}-ecr`);
 
     new cdk.CfnOutput(this, 'RepoUri', {
       value: this.repository.repositoryUri,

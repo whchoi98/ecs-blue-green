@@ -27,4 +27,14 @@ describe('BgTestEcrStack', () => {
       },
     });
   });
+
+  it('applies common tags (Project=bg-test) to the repository', () => {
+    const t = synthEcr();
+    t.hasResourceProperties('AWS::ECR::Repository', {
+      Tags: Match.arrayWith([
+        { Key: 'Name', Value: 'bg-ecr' },
+        { Key: 'Project', Value: 'bg-test' },
+      ]),
+    });
+  });
 });
