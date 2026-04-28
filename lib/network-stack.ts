@@ -11,7 +11,7 @@ export class BgTestNetworkStack extends cdk.Stack {
   public readonly vpc: ec2.Vpc;
   public readonly publicSubnets: ec2.ISubnet[];
   public readonly private1Subnets: ec2.ISubnet[];
-  public readonly private2Subnets: ec2.ISubnet[] = [];
+  public readonly private2Subnets: ec2.ISubnet[];
   public readonly private3Subnets: ec2.ISubnet[];
   public readonly dbSubnets: ec2.ISubnet[];
 
@@ -39,9 +39,9 @@ export class BgTestNetworkStack extends cdk.Stack {
     this.private1Subnets = this.vpc.selectSubnets({ subnetGroupName: 'private1' }).subnets;
     this.private3Subnets = this.vpc.selectSubnets({ subnetGroupName: 'private3' }).subnets;
     this.dbSubnets       = this.vpc.selectSubnets({ subnetGroupName: 'db' }).subnets;
-    if (props.includeSecondaryCidr) {
-      (this.private2Subnets as ec2.ISubnet[]).push(...this.buildSecondaryCidrSubnets());
-    }
+    this.private2Subnets = props.includeSecondaryCidr
+      ? this.buildSecondaryCidrSubnets()
+      : [];
 
     this.addVpcEndpoints();
   }
@@ -72,6 +72,11 @@ export class BgTestNetworkStack extends cdk.Stack {
           destinationCidrBlock: '0.0.0.0/0',
           natGatewayId: natGw.ref,
         });
+      } else {
+        cdk.Annotations.of(this).addWarning(
+          `Could not locate NAT gateway in public subnet [${i}]; private2 subnet will lack internet egress. ` +
+          `This may indicate a CDK version change to internal NAT GW construct id.`,
+        );
       }
       newSubnets.push(subnet);
     });
