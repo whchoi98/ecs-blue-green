@@ -1,3 +1,7 @@
+/**
+ * Pair of CIDR blocks for a subnet group, one per Availability Zone.
+ * `cidrA` = AZ-a (first AZ), `cidrB` = AZ-b (second AZ) of the region.
+ */
 export interface SubnetCidrPair { cidrA: string; cidrB: string; }
 
 export interface LabConfig {
@@ -7,10 +11,15 @@ export interface LabConfig {
     primaryCidr: string;
     secondaryCidr: string;
     subnets: {
+      /** Public subnet — ALBs and NAT gateways. Internet-facing. */
       public: SubnetCidrPair;
+      /** Private subnet 1 (/24) — initial Blue compute (EC2 ASG, ECS hosts, Fargate tasks) and Redis. */
       private1: SubnetCidrPair;
+      /** Private subnet 2 (/22, in VPC secondary CIDR 10.1.0.0/16) — migration target for Green compute when private1 IPs are exhausted. */
       private2: SubnetCidrPair;
+      /** Private subnet 3 (/24) — reserved for future workloads. */
       private3: SubnetCidrPair;
+      /** Aurora MySQL subnet group — isolated (no NAT egress). */
       db: SubnetCidrPair;
     };
   };
@@ -19,9 +28,11 @@ export interface LabConfig {
     ecsHostInstanceType: string;
     fargateCpu: number;
     fargateMemory: number;
+    /** EC2 ASG (standalone, not ECS-managed) running the Express app directly via docker run. */
     asgDesired: number;
     asgMin: number;
     asgMax: number;
+    /** ECS-managed ASG providing capacity for ECS-on-EC2 launch type. */
     ecsHostAsgDesired: number;
     ecsHostAsgMin: number;
     ecsHostAsgMax: number;
