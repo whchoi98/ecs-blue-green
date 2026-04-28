@@ -266,7 +266,7 @@ export class BgTestComputeStack extends cdk.Stack {
     // if `cluster.addAsgCapacityProvider(cp)` mutated the Cluster stack.
     new ecs.CfnClusterCapacityProviderAssociations(this, 'EcsCpAssoc', {
       cluster: cluster.clusterName,
-      capacityProviders: [cp.capacityProviderName],
+      capacityProviders: [cp.capacityProviderName, 'FARGATE', 'FARGATE_SPOT'],
       defaultCapacityProviderStrategy: [
         { capacityProvider: cp.capacityProviderName, weight: 1 },
       ],

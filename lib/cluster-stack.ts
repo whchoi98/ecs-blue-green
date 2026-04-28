@@ -14,11 +14,13 @@ export class BgTestClusterStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: BgTestClusterStackProps) {
     super(scope, id, props);
 
+    // Note: capacity providers (FARGATE + per-color EC2 ASG CP) are registered by
+    // BgTestComputeStack via a single CfnClusterCapacityProviderAssociations to keep
+    // all CP wiring in one place and avoid cross-stack mutation cycles.
     this.cluster = new ecs.Cluster(this, 'EcsCluster', {
       clusterName: LAB_CONFIG.ecsClusterName,
       vpc: props.networkStack.vpc,
       containerInsightsV2: ecs.ContainerInsights.ENABLED,
-      enableFargateCapacityProviders: true,
     });
     cdk.Tags.of(this.cluster).add('Name', `${LAB_CONFIG.resourcePrefix}-ecs-cluster`);
     Object.entries(commonTags()).forEach(([k, v]) => cdk.Tags.of(this.cluster).add(k, v));
