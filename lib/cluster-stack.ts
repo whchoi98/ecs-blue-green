@@ -17,7 +17,7 @@ export class BgTestClusterStack extends cdk.Stack {
     this.cluster = new ecs.Cluster(this, 'EcsCluster', {
       clusterName: LAB_CONFIG.ecsClusterName,
       vpc: props.networkStack.vpc,
-      containerInsights: true,
+      containerInsightsV2: ecs.ContainerInsights.ENABLED,
       enableFargateCapacityProviders: true,
     });
     cdk.Tags.of(this.cluster).add('Name', `${LAB_CONFIG.resourcePrefix}-ecs-cluster`);
