@@ -10,19 +10,7 @@ describe('LAB_CONFIG', () => {
     expect(LAB_CONFIG.vpc.secondaryCidr).toBe('10.2.0.0/16');
   });
 
-  it('defines 4 subnet types in primary CIDR (public, private1, private3, db)', () => {
-    const subnets = LAB_CONFIG.vpc.subnets;
-    expect(subnets.public.cidrA).toBe('10.1.11.0/24');
-    expect(subnets.public.cidrB).toBe('10.1.12.0/24');
-    expect(subnets.private1.cidrA).toBe('10.1.21.0/24');
-    expect(subnets.private1.cidrB).toBe('10.1.22.0/24');
-    expect(subnets.private3.cidrA).toBe('10.1.41.0/24');
-    expect(subnets.private3.cidrB).toBe('10.1.42.0/24');
-    expect(subnets.db.cidrA).toBe('10.1.51.0/24');
-    expect(subnets.db.cidrB).toBe('10.1.52.0/24');
-  });
-
-  it('defines private2 in secondary CIDR with /22 size', () => {
+  it('defines private2 in secondary CIDR with /22 size (only explicit subnet — others auto-allocated)', () => {
     const private2 = LAB_CONFIG.vpc.subnets.private2;
     expect(private2.cidrA).toBe('10.2.0.0/22');
     expect(private2.cidrB).toBe('10.2.4.0/22');

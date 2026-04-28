@@ -10,17 +10,20 @@ export interface LabConfig {
     name: string;
     primaryCidr: string;
     secondaryCidr: string;
+    /**
+     * Primary CIDR subnets are auto-allocated by CDK's `ec2.Vpc` with `cidrMask: /24`.
+     * Tier mapping (defined in `lib/network-stack.ts`):
+     *   - `public`   → ALBs + NAT gateways (internet-facing)
+     *   - `private1` → initial Blue compute (EC2 ASG, ECS hosts, Fargate tasks) and Redis
+     *   - `private3` → reserved for future workloads
+     *   - `db`       → Aurora subnet group (isolated, no NAT egress)
+     * Identify subnets in the AWS console via the tag `aws-cdk:subnet-group-name`.
+     * Only `private2` (in the secondary CIDR) is explicitly declared below because it
+     * lives outside the auto-allocation range and uses the larger /22 mask.
+     */
     subnets: {
-      /** Public subnet — ALBs and NAT gateways. Internet-facing. */
-      public: SubnetCidrPair;
-      /** Private subnet 1 (/24) — initial Blue compute (EC2 ASG, ECS hosts, Fargate tasks) and Redis. */
-      private1: SubnetCidrPair;
       /** Private subnet 2 (/22, in VPC secondary CIDR 10.2.0.0/16) — migration target for Green compute when private1 IPs are exhausted. */
       private2: SubnetCidrPair;
-      /** Private subnet 3 (/24) — reserved for future workloads. */
-      private3: SubnetCidrPair;
-      /** Aurora MySQL subnet group — isolated (no NAT egress). */
-      db: SubnetCidrPair;
     };
   };
   compute: {
@@ -58,11 +61,7 @@ export const LAB_CONFIG: LabConfig = {
     primaryCidr: '10.1.0.0/16',
     secondaryCidr: '10.2.0.0/16',
     subnets: {
-      public:   { cidrA: '10.1.11.0/24', cidrB: '10.1.12.0/24' },
-      private1: { cidrA: '10.1.21.0/24', cidrB: '10.1.22.0/24' },
-      private2: { cidrA: '10.2.0.0/22',  cidrB: '10.2.4.0/22'  },
-      private3: { cidrA: '10.1.41.0/24', cidrB: '10.1.42.0/24' },
-      db:       { cidrA: '10.1.51.0/24', cidrB: '10.1.52.0/24' },
+      private2: { cidrA: '10.2.0.0/22', cidrB: '10.2.4.0/22' },
     },
   },
   compute: {
