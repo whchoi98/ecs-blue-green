@@ -44,7 +44,7 @@ describe('BgTestDataStack', () => {
     t.hasResourceProperties('AWS::ElastiCache::ReplicationGroup', {
       Engine: 'redis',
       EngineVersion: '7.1',
-      CacheNodeType: 'cache.t4g.xlarge',
+      CacheNodeType: 'cache.m7g.large',
       NumNodeGroups: 1,
       ReplicasPerNodeGroup: 1,
       AutomaticFailoverEnabled: true,

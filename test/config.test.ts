@@ -20,7 +20,7 @@ describe('LAB_CONFIG', () => {
     expect(LAB_CONFIG.compute.ec2InstanceType).toBe('t4g.xlarge');
     expect(LAB_CONFIG.compute.ecsHostInstanceType).toBe('t4g.xlarge');
     expect(LAB_CONFIG.data.auroraInstanceClass).toBe('db.t4g.xlarge');
-    expect(LAB_CONFIG.data.redisNodeType).toBe('cache.t4g.xlarge');
+    expect(LAB_CONFIG.data.redisNodeType).toBe('cache.m7g.large');
   });
 
   it('returns common tags including Project, Environment, ManagedBy', () => {
