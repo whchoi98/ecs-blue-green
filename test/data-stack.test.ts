@@ -26,10 +26,10 @@ describe('BgTestDataStack', () => {
     });
   });
 
-  it('creates 2 DB instances (Writer + Reader) of class db.t4g.large', () => {
+  it('creates 2 DB instances (Writer + Reader) of class db.r7g.large', () => {
     const t = synthData();
     t.resourceCountIs('AWS::RDS::DBInstance', 2);
-    t.hasResourceProperties('AWS::RDS::DBInstance', { DBInstanceClass: 'db.t4g.large' });
+    t.hasResourceProperties('AWS::RDS::DBInstance', { DBInstanceClass: 'db.r7g.large' });
   });
 
   it('creates Secrets Manager secret for DB password', () => {
@@ -39,15 +39,14 @@ describe('BgTestDataStack', () => {
     });
   });
 
-  it('creates ElastiCache Redis 7.1 replication group with 2 nodes', () => {
+  it('creates ElastiCache Valkey replication group with 2 cache clusters', () => {
     const t = synthData();
     t.hasResourceProperties('AWS::ElastiCache::ReplicationGroup', {
-      Engine: 'redis',
-      EngineVersion: '7.1',
-      CacheNodeType: 'cache.m7g.large',
-      NumNodeGroups: 1,
-      ReplicasPerNodeGroup: 1,
+      Engine: 'valkey',
+      CacheNodeType: 'cache.r7g.large',
+      NumCacheClusters: 2,
       AutomaticFailoverEnabled: true,
+      MultiAZEnabled: true,
       TransitEncryptionEnabled: true,
       AtRestEncryptionEnabled: true,
     });

@@ -78,10 +78,10 @@ export const LAB_CONFIG: LabConfig = {
     appPort: 3000,
   },
   data: {
-    auroraInstanceClass: 'db.t4g.large',
+    auroraInstanceClass: 'db.r7g.large',
     auroraEngineVersion: '8.0.mysql_aurora.3.08.0',
-    redisNodeType: 'cache.m7g.large',
-    redisEngineVersion: '7.1',
+    redisNodeType: 'cache.r7g.large',
+    redisEngineVersion: '8.0',
     dbName: 'bgtest',
     dbUser: 'admin',
   },

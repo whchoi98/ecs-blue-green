@@ -84,11 +84,9 @@ export class BgTestDataStack extends cdk.Stack {
     this.redisReplicationGroup = new elasticache.CfnReplicationGroup(this, 'RedisRG', {
       replicationGroupId: `${prefix}-redis`,
       replicationGroupDescription: `${prefix}-redis primary + replica`,
-      engine: 'redis',
-      engineVersion: cfg.redisEngineVersion,
+      engine: 'valkey',
       cacheNodeType: cfg.redisNodeType,
-      numNodeGroups: 1,
-      replicasPerNodeGroup: 1,
+      numCacheClusters: 2,
       automaticFailoverEnabled: true,
       multiAzEnabled: true,
       cacheSubnetGroupName: redisSubnetGroup.ref,
