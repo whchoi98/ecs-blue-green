@@ -4,7 +4,7 @@ import { BgTestNetworkStack } from '../lib/network-stack';
 import { BgTestAlbStack } from '../lib/alb-stack';
 import { BgTestCfStack } from '../lib/cf-stack';
 
-function synthCf(activeColor: 'blue' | 'green' = 'blue') {
+function synthCf() {
   const app = new cdk.App();
   const env = { account: '123456789012', region: 'ap-northeast-2' };
   const network = new BgTestNetworkStack(app, 'Net', { env, includeSecondaryCidr: false });
@@ -13,9 +13,7 @@ function synthCf(activeColor: 'blue' | 'green' = 'blue') {
     cloudFrontPrefixListId: 'pl-22a6434b',
     includeGreen: false,
   });
-  const cf = new BgTestCfStack(app, 'Cf', {
-    env, activeColor, albStack: alb,
-  });
+  const cf = new BgTestCfStack(app, 'Cf', { env, albStack: alb });
   return Template.fromStack(cf);
 }
 

@@ -20,13 +20,13 @@ LOGO
   center "B L U E   /   G R E E N   T E S T"
   echo
 
-  local active cf
-  active=$(fetch_active_color)
+  local weights cf
+  weights=$(fetch_active_weights)
   cf=$(fetch_cf_url)
 
   hr '=' "$W$BOLD"
-  printf "  %bCF URL%b : %s\n" "$BOLD" "$RESET" "$cf"
-  printf "  %bActive%b : %s\n" "$BOLD" "$RESET" "$active"
+  printf "  %bCF URL%b  : %s\n" "$BOLD" "$RESET" "$cf"
+  printf "  %bWeights%b : %s\n" "$BOLD" "$RESET" "$weights"
   hr '=' "$W$BOLD"
   echo
 

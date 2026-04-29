@@ -32,10 +32,11 @@ npx cdk bootstrap aws://$(aws sts get-caller-identity --query Account --output t
 
 | Key | Default | 의미 |
 |---|---|---|
-| activeColor | blue | CF origin 색상 |
-| includeSecondaryCidr | false | 10.2.0.0/16 secondary CIDR 추가 |
-| includeGreen | false | GreenStack 배포 |
+| includeSecondaryCidr | false | 10.2.0.0/16 secondary CIDR 추가 (Green compute 서브넷의 전제) |
+| includeGreen | false | Green compute stack + Green TGs 배포 (초기 weight 0) |
 | cloudFrontPrefixListId | pl-22a6434b | CloudFront origin-facing managed prefix list (ap-northeast-2 default; change for other regions) |
+
+> 트래픽 색상 전환은 CDK context가 아니라 ALB weighted listener rule로 제어합니다 — `demos/scenario3-shift-traffic.sh <green_pct>` 사용.
 
 ## Tests
 

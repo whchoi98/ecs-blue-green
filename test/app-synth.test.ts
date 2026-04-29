@@ -11,8 +11,8 @@ describe('cdk synth (full app)', () => {
     expect(out).not.toMatch(/error/i);
   }, 120000);
 
-  it('synthesizes with includeGreen=true and activeColor=green without error', () => {
-    const out = execSync('npx cdk synth --quiet --context includeSecondaryCidr=true --context includeGreen=true --context activeColor=green 2>&1', { encoding: 'utf-8' });
+  it('synthesizes with includeGreen=true (Green TGs added with weight 0) without error', () => {
+    const out = execSync('npx cdk synth --quiet --context includeSecondaryCidr=true --context includeGreen=true 2>&1', { encoding: 'utf-8' });
     expect(out).not.toMatch(/error/i);
   }, 120000);
 });

@@ -44,7 +44,7 @@ echo; echo
 
 apply_shift() {
   local workload="$1"
-  local alb_name="bg-alb-${workload}-blue"
+  local alb_name="bg-alb-${workload}"
 
   local alb_arn listener_arn rule_arn blue_tg_arn green_tg_arn
   alb_arn=$(aws elbv2 describe-load-balancers --names "$alb_name" --query "LoadBalancers[0].LoadBalancerArn" --output text 2>/dev/null) || {

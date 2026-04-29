@@ -17,7 +17,6 @@ const env: cdk.Environment = {
   region: process.env.CDK_DEFAULT_REGION ?? LAB_CONFIG.region,
 };
 
-const activeColor = (app.node.tryGetContext('activeColor') ?? 'blue') as 'blue' | 'green';
 const includeSecondaryCidr = app.node.tryGetContext('includeSecondaryCidr') === true || app.node.tryGetContext('includeSecondaryCidr') === 'true';
 const includeGreen = app.node.tryGetContext('includeGreen') === true || app.node.tryGetContext('includeGreen') === 'true';
 const cloudFrontPrefixListId = app.node.tryGetContext('cloudFrontPrefixListId') ?? 'pl-22a6434b';
@@ -64,8 +63,9 @@ if (includeGreen) {
   green.addDependency(alb);
 }
 
-// CloudFront — origin is AlbStack
-const cf = new BgTestCfStack(app, 'BgTestCfStack', { env, activeColor, albStack: alb });
+// CloudFront — origin is AlbStack. Traffic split is owned by ALB weighted rules
+// (see demos/scenario3-shift-traffic.sh), so CF has no notion of active color.
+const cf = new BgTestCfStack(app, 'BgTestCfStack', { env, albStack: alb });
 cf.addDependency(alb);
 
 app.synth();

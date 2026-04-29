@@ -77,10 +77,29 @@ cdk_deploy() {
   npx cdk deploy ${stacks} ${extra_ctx} --require-approval never
 }
 
-fetch_active_color() {
-  aws cloudformation describe-stacks --stack-name BgTestCfStack \
-    --query "Stacks[0].Outputs[?OutputKey=='ActiveColor'].OutputValue" --output text 2>/dev/null \
-    || echo "(not deployed)"
+fetch_active_weights() {
+  # Returns "Blue NN / Green NN" by reading the weighted forward rule on the ec2asg ALB.
+  # All 3 ALBs are kept in lock-step by scenario3-shift-traffic.sh, so one is representative.
+  local alb_arn listener_arn rule_arn tgs
+  alb_arn=$(aws elbv2 describe-load-balancers --names "bg-alb-ec2asg" \
+    --query "LoadBalancers[0].LoadBalancerArn" --output text 2>/dev/null) || { echo "(not deployed)"; return; }
+  [ -z "$alb_arn" ] || [ "$alb_arn" = "None" ] && { echo "(not deployed)"; return; }
+  listener_arn=$(aws elbv2 describe-listeners --load-balancer-arn "$alb_arn" \
+    --query "Listeners[0].ListenerArn" --output text 2>/dev/null)
+  rule_arn=$(aws elbv2 describe-rules --listener-arn "$listener_arn" \
+    --query "Rules[?Priority=='1'].RuleArn" --output text 2>/dev/null)
+  [ -z "$rule_arn" ] || [ "$rule_arn" = "None" ] && { echo "Blue 100 / Green   0"; return; }
+  tgs=$(aws elbv2 describe-rules --rule-arns "$rule_arn" \
+    --query "Rules[0].Actions[0].ForwardConfig.TargetGroups" --output json 2>/dev/null)
+  python3 - "$tgs" <<'PY' 2>/dev/null || echo "Blue 100 / Green   0"
+import sys, json
+b, g = 100, 0
+for tg in json.loads(sys.argv[1]):
+    name = tg['TargetGroupArn'].split(':')[-1].split('/')[1]  # bg-tg-ec2asg-blue
+    if name.endswith('-blue'):  b = tg.get('Weight', 0)
+    elif name.endswith('-green'): g = tg.get('Weight', 0)
+print(f'Blue {b:>3} / Green {g:>3}')
+PY
 }
 
 fetch_cf_url() {

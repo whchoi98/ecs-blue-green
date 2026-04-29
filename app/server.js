@@ -28,6 +28,14 @@ if (!SKIP_DEPS) {
 function createApp() {
   const app = express();
 
+  // Strip CloudFront path prefix so /ec2-asg/health, /ecs-ec2/info, /ecs-fg/db/ping etc.
+  // route the same as /health, /info, /db/ping. CF behavior pattern is /<workload>/* but
+  // CF passes the full path to origin; this middleware normalizes it.
+  app.use((req, _res, next) => {
+    req.url = req.url.replace(/^\/(ec2-asg|ecs-ec2|ecs-fg)(\/|$)/, '/') || '/';
+    next();
+  });
+
   app.get('/health', (_req, res) => {
     res.json({ status: 'healthy', color: COLOR, compute: COMPUTE_TYPE });
   });

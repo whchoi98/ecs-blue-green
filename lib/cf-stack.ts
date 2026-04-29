@@ -6,8 +6,6 @@ import { LAB_CONFIG, commonTags } from './config';
 import { BgTestAlbStack } from './alb-stack';
 
 export interface BgTestCfStackProps extends cdk.StackProps {
-  /** Display only — actual traffic split is done by ALB weighted target groups */
-  activeColor?: 'blue' | 'green';
   albStack: BgTestAlbStack;
 }
 
@@ -53,12 +51,5 @@ export class BgTestCfStack extends cdk.Stack {
       value: `https://${this.distribution.distributionDomainName}`,
       exportName: 'BgTestCfDomain',
     });
-    if (props.activeColor) {
-      new cdk.CfnOutput(this, 'ActiveColor', {
-        value: props.activeColor,
-        description: 'Display only — actual traffic split is on ALB weighted rule. Use scenario3-shift-traffic.sh.',
-        exportName: 'BgTestActiveColor',
-      });
-    }
   }
 }
