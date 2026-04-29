@@ -1,26 +1,20 @@
 import * as cdk from 'aws-cdk-lib';
 import { Template, Match } from 'aws-cdk-lib/assertions';
 import { BgTestNetworkStack } from '../lib/network-stack';
-import { BgTestDataStack } from '../lib/data-stack';
-import { BgTestEcrStack } from '../lib/ecr-stack';
-import { BgTestClusterStack } from '../lib/cluster-stack';
-import { BgTestComputeStack } from '../lib/compute-stack';
+import { BgTestAlbStack } from '../lib/alb-stack';
 import { BgTestCfStack } from '../lib/cf-stack';
 
 function synthCf(activeColor: 'blue' | 'green' = 'blue') {
   const app = new cdk.App();
   const env = { account: '123456789012', region: 'ap-northeast-2' };
   const network = new BgTestNetworkStack(app, 'Net', { env, includeSecondaryCidr: false });
-  const data = new BgTestDataStack(app, 'Data', { env, networkStack: network });
-  const ecr = new BgTestEcrStack(app, 'Ecr', { env });
-  const cluster = new BgTestClusterStack(app, 'Cluster', { env, networkStack: network });
-  const blue = new BgTestComputeStack(app, 'Blue', {
-    env, color: 'blue', computeSubnetGroup: 'private1',
-    networkStack: network, dataStack: data, ecrStack: ecr, clusterStack: cluster,
+  const alb = new BgTestAlbStack(app, 'Alb', {
+    env, networkStack: network,
     cloudFrontPrefixListId: 'pl-22a6434b',
+    includeGreen: false,
   });
   const cf = new BgTestCfStack(app, 'Cf', {
-    env, activeColor, blueStack: blue,
+    env, activeColor, albStack: alb,
   });
   return Template.fromStack(cf);
 }

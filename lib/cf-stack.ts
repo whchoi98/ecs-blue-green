@@ -3,15 +3,12 @@ import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import { Construct } from 'constructs';
 import { LAB_CONFIG, commonTags } from './config';
-import { BgTestComputeStack } from './compute-stack';
+import { BgTestAlbStack } from './alb-stack';
 
 export interface BgTestCfStackProps extends cdk.StackProps {
-  /** Display only — actual traffic split is done by ALB weighted target groups, not CF */
-  activeColor: 'blue' | 'green';
-  /** CF always points to Blue ALBs. Blue's listener rules use weighted forwarding to Blue+Green TGs. */
-  blueStack: BgTestComputeStack;
-  /** Reference only (for tagging/metadata); CF origin domain is always Blue's ALB */
-  greenStack?: BgTestComputeStack;
+  /** Display only — actual traffic split is done by ALB weighted target groups */
+  activeColor?: 'blue' | 'green';
+  albStack: BgTestAlbStack;
 }
 
 export class BgTestCfStack extends cdk.Stack {
@@ -19,15 +16,6 @@ export class BgTestCfStack extends cdk.Stack {
 
   constructor(scope: Construct, id: string, props: BgTestCfStackProps) {
     super(scope, id, props);
-
-    // CF origin is ALWAYS Blue's ALBs. Blue's listener rules forward weighted to Blue/Green TGs.
-    // Traffic shifting: aws elbv2 modify-rule changes weights — propagation in 1-2 seconds.
-    if (!props.blueStack.ec2AsgAlb || !props.blueStack.ecsEc2Alb || !props.blueStack.ecsFgAlb) {
-      throw new Error('BlueStack must be deployed with manageAlb=true (provides ALBs for CF origins)');
-    }
-    if (!props.blueStack.ec2AsgSecret || !props.blueStack.ecsEc2Secret || !props.blueStack.ecsFgSecret) {
-      throw new Error('BlueStack must expose X-Custom-Secret values for CF custom headers');
-    }
 
     const baseBehavior: Omit<cloudfront.BehaviorOptions, 'origin'> = {
       viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
@@ -44,12 +32,12 @@ export class BgTestCfStack extends cdk.Stack {
         readTimeout: cdk.Duration.seconds(30),
       });
 
-    const ec2asgOrigin = makeAlbOrigin(props.blueStack.ec2AsgAlb.loadBalancerDnsName, props.blueStack.ec2AsgSecret);
-    const ecsec2Origin = makeAlbOrigin(props.blueStack.ecsEc2Alb.loadBalancerDnsName, props.blueStack.ecsEc2Secret);
-    const ecsfgOrigin  = makeAlbOrigin(props.blueStack.ecsFgAlb.loadBalancerDnsName,  props.blueStack.ecsFgSecret);
+    const ec2asgOrigin = makeAlbOrigin(props.albStack.ec2AsgAlb.loadBalancerDnsName, props.albStack.ec2AsgSecret);
+    const ecsec2Origin = makeAlbOrigin(props.albStack.ecsEc2Alb.loadBalancerDnsName, props.albStack.ecsEc2Secret);
+    const ecsfgOrigin  = makeAlbOrigin(props.albStack.ecsFgAlb.loadBalancerDnsName,  props.albStack.ecsFgSecret);
 
     this.distribution = new cloudfront.Distribution(this, 'Cf', {
-      comment: `${LAB_CONFIG.resourcePrefix}-test-cf (Blue ALB origin; weighted forward routes to Blue/Green TGs)`,
+      comment: `${LAB_CONFIG.resourcePrefix}-test-cf (origin = AlbStack ALBs; weighted forward to Blue/Green TGs)`,
       priceClass: cloudfront.PriceClass.PRICE_CLASS_200,
       defaultBehavior: { origin: ec2asgOrigin, ...baseBehavior },
       additionalBehaviors: {
@@ -65,10 +53,12 @@ export class BgTestCfStack extends cdk.Stack {
       value: `https://${this.distribution.distributionDomainName}`,
       exportName: 'BgTestCfDomain',
     });
-    new cdk.CfnOutput(this, 'ActiveColor', {
-      value: props.activeColor,
-      description: 'Display only — actual weight is on ALB rules. Use scenario3-shift-traffic.sh to change.',
-      exportName: 'BgTestActiveColor',
-    });
+    if (props.activeColor) {
+      new cdk.CfnOutput(this, 'ActiveColor', {
+        value: props.activeColor,
+        description: 'Display only — actual traffic split is on ALB weighted rule. Use scenario3-shift-traffic.sh.',
+        exportName: 'BgTestActiveColor',
+      });
+    }
   }
 }
