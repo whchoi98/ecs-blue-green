@@ -23,22 +23,38 @@ export interface BgTestComputeStackProps extends cdk.StackProps {
   ecrStack: BgTestEcrStack;
   clusterStack: BgTestClusterStack;
   cloudFrontPrefixListId: string;
-}
-
-interface AlbBundle {
-  alb: elbv2.ApplicationLoadBalancer;
-  listener: elbv2.ApplicationListener;
-  tg: elbv2.ApplicationTargetGroup;
-  secret: string;
+  /**
+   * Whether this stack creates the ALBs and listener rules.
+   * Blue stack: true (creates 3 ALBs + weighted listener rules pointing to its TGs and optionally peer's TGs)
+   * Green stack: false (creates only TGs/ASGs/services; reuses Blue's ALBs via shared listener rule)
+   */
+  manageAlb?: boolean;
+  /**
+   * Whether this stack creates the cluster's CapacityProviderAssociations.
+   * Only one stack per cluster may own this resource. Blue=true, Green=false.
+   */
+  manageClusterAssociation?: boolean;
+  /**
+   * Optional peer compute stack whose target groups should be added to this stack's
+   * weighted listener rules. Used by Blue to receive Green's target groups so weight
+   * can be shifted between Blue and Green via ALB weighted forwarding.
+   */
+  peerStack?: BgTestComputeStack;
 }
 
 export class BgTestComputeStack extends cdk.Stack {
-  public readonly ec2AsgAlb: elbv2.ApplicationLoadBalancer;
-  public readonly ecsEc2Alb: elbv2.ApplicationLoadBalancer;
-  public readonly ecsFgAlb: elbv2.ApplicationLoadBalancer;
-  public readonly ec2AsgSecret: string;
-  public readonly ecsEc2Secret: string;
-  public readonly ecsFgSecret: string;
+  public readonly ec2AsgTg: elbv2.ApplicationTargetGroup;
+  public readonly ecsEc2Tg: elbv2.ApplicationTargetGroup;
+  public readonly ecsFgTg: elbv2.ApplicationTargetGroup;
+  public readonly capacityProviderName: string;
+
+  // Optional — only set when manageAlb=true
+  public readonly ec2AsgAlb?: elbv2.ApplicationLoadBalancer;
+  public readonly ecsEc2Alb?: elbv2.ApplicationLoadBalancer;
+  public readonly ecsFgAlb?: elbv2.ApplicationLoadBalancer;
+  public readonly ec2AsgSecret?: string;
+  public readonly ecsEc2Secret?: string;
+  public readonly ecsFgSecret?: string;
 
   private readonly color: Color;
   private readonly computeSubnets: ec2.ISubnet[];
@@ -60,40 +76,75 @@ export class BgTestComputeStack extends cdk.Stack {
     this.computeSubnets = subnets;
 
     const vpc = props.networkStack.vpc;
-    const ec2asgBundle = this.createAlbBundle('ec2asg', { tgPort: 80, tgType: elbv2.TargetType.INSTANCE, prefixListId: props.cloudFrontPrefixListId, vpc });
-    const ecsec2Bundle = this.createAlbBundle('ecsec2', { tgPort: 80, tgType: elbv2.TargetType.INSTANCE, prefixListId: props.cloudFrontPrefixListId, vpc });
-    const ecsfgBundle  = this.createAlbBundle('ecsfg',  { tgPort: LAB_CONFIG.compute.appPort, tgType: elbv2.TargetType.IP, prefixListId: props.cloudFrontPrefixListId, vpc });
+    const manageAlb = props.manageAlb ?? true;
+    const manageAssoc = props.manageClusterAssociation ?? true;
 
-    this.ec2AsgAlb = ec2asgBundle.alb;
-    this.ecsEc2Alb = ecsec2Bundle.alb;
-    this.ecsFgAlb  = ecsfgBundle.alb;
-    this.ec2AsgSecret = ec2asgBundle.secret;
-    this.ecsEc2Secret = ecsec2Bundle.secret;
-    this.ecsFgSecret  = ecsfgBundle.secret;
+    // 1) Always create target groups (whether or not we own the ALB)
+    this.ec2AsgTg = this.createTargetGroup('ec2asg', { vpc, port: 80, type: elbv2.TargetType.INSTANCE });
+    this.ecsEc2Tg = this.createTargetGroup('ecsec2', { vpc, port: 80, type: elbv2.TargetType.INSTANCE });
+    this.ecsFgTg  = this.createTargetGroup('ecsfg',  { vpc, port: LAB_CONFIG.compute.appPort, type: elbv2.TargetType.IP });
 
-    this.attachEc2Asg(ec2asgBundle, props);
-    this.attachEcsEc2(ecsec2Bundle, props);
-    this.attachEcsFargate(ecsfgBundle, props);
+    // 2) Optionally create ALBs + listeners + weighted forward rules
+    if (manageAlb) {
+      const ec2asgAlb = this.createAlbWithListener('ec2asg', { vpc, prefixListId: props.cloudFrontPrefixListId, primaryTg: this.ec2AsgTg, peerTg: props.peerStack?.ec2AsgTg });
+      const ecsec2Alb = this.createAlbWithListener('ecsec2', { vpc, prefixListId: props.cloudFrontPrefixListId, primaryTg: this.ecsEc2Tg, peerTg: props.peerStack?.ecsEc2Tg });
+      const ecsfgAlb  = this.createAlbWithListener('ecsfg',  { vpc, prefixListId: props.cloudFrontPrefixListId, primaryTg: this.ecsFgTg,  peerTg: props.peerStack?.ecsFgTg });
 
-    new cdk.CfnOutput(this, 'Ec2AsgAlbDns', { value: this.ec2AsgAlb.loadBalancerDnsName, exportName: `BgTest-${props.color}-Ec2AsgAlb` });
-    new cdk.CfnOutput(this, 'EcsEc2AlbDns', { value: this.ecsEc2Alb.loadBalancerDnsName, exportName: `BgTest-${props.color}-EcsEc2Alb` });
-    new cdk.CfnOutput(this, 'EcsFgAlbDns',  { value: this.ecsFgAlb.loadBalancerDnsName,  exportName: `BgTest-${props.color}-EcsFgAlb` });
-    new cdk.CfnOutput(this, 'Ec2AsgSecret', { value: this.ec2AsgSecret, exportName: `BgTest-${props.color}-Ec2AsgSecret` });
-    new cdk.CfnOutput(this, 'EcsEc2Secret', { value: this.ecsEc2Secret, exportName: `BgTest-${props.color}-EcsEc2Secret` });
-    new cdk.CfnOutput(this, 'EcsFgSecret',  { value: this.ecsFgSecret,  exportName: `BgTest-${props.color}-EcsFgSecret` });
+      (this as any).ec2AsgAlb = ec2asgAlb.alb;
+      (this as any).ecsEc2Alb = ecsec2Alb.alb;
+      (this as any).ecsFgAlb  = ecsfgAlb.alb;
+      (this as any).ec2AsgSecret = ec2asgAlb.secret;
+      (this as any).ecsEc2Secret = ecsec2Alb.secret;
+      (this as any).ecsFgSecret  = ecsfgAlb.secret;
+
+      new cdk.CfnOutput(this, 'Ec2AsgAlbDns', { value: ec2asgAlb.alb.loadBalancerDnsName, exportName: `BgTest-${props.color}-Ec2AsgAlb` });
+      new cdk.CfnOutput(this, 'EcsEc2AlbDns', { value: ecsec2Alb.alb.loadBalancerDnsName, exportName: `BgTest-${props.color}-EcsEc2Alb` });
+      new cdk.CfnOutput(this, 'EcsFgAlbDns',  { value: ecsfgAlb.alb.loadBalancerDnsName,  exportName: `BgTest-${props.color}-EcsFgAlb` });
+      new cdk.CfnOutput(this, 'Ec2AsgSecret', { value: ec2asgAlb.secret, exportName: `BgTest-${props.color}-Ec2AsgSecret` });
+      new cdk.CfnOutput(this, 'EcsEc2Secret', { value: ecsec2Alb.secret, exportName: `BgTest-${props.color}-EcsEc2Secret` });
+      new cdk.CfnOutput(this, 'EcsFgSecret',  { value: ecsfgAlb.secret,  exportName: `BgTest-${props.color}-EcsFgSecret` });
+    }
+
+    // 3) Compute (EC2 ASG + ECS-EC2 + Fargate) — register to TGs (work the same regardless of manageAlb)
+    this.attachEc2Asg(props);
+    this.capacityProviderName = `ec2-cp-${this.color}`;
+    this.attachEcsEc2(props, manageAssoc);
+    this.attachEcsFargate(props);
+
+    new cdk.CfnOutput(this, 'Ec2AsgTgArn', { value: this.ec2AsgTg.targetGroupArn, exportName: `BgTest-${props.color}-Ec2AsgTgArn` });
+    new cdk.CfnOutput(this, 'EcsEc2TgArn', { value: this.ecsEc2Tg.targetGroupArn, exportName: `BgTest-${props.color}-EcsEc2TgArn` });
+    new cdk.CfnOutput(this, 'EcsFgTgArn',  { value: this.ecsFgTg.targetGroupArn,  exportName: `BgTest-${props.color}-EcsFgTgArn` });
   }
 
-  private createAlbBundle(
+  private createTargetGroup(workload: string, opts: { vpc: ec2.IVpc; port: number; type: elbv2.TargetType }): elbv2.ApplicationTargetGroup {
+    const tg = new elbv2.ApplicationTargetGroup(this, `${workload}Tg`, {
+      vpc: opts.vpc,
+      port: opts.port,
+      protocol: elbv2.ApplicationProtocol.HTTP,
+      targetType: opts.type,
+      targetGroupName: `bg-tg-${workload}-${this.color}`.slice(0, 32),
+      healthCheck: {
+        path: '/health',
+        port: opts.type === elbv2.TargetType.INSTANCE ? 'traffic-port' : String(opts.port),
+        healthyHttpCodes: '200',
+        interval: cdk.Duration.seconds(30),
+      },
+    });
+    cdk.Tags.of(tg).add('Name', `bg-tg-${workload}-${this.color}`);
+    cdk.Tags.of(tg).add('Color', this.color);
+    return tg;
+  }
+
+  private createAlbWithListener(
     workload: string,
-    opts: { tgPort: number; tgType: elbv2.TargetType; prefixListId: string; vpc: ec2.IVpc },
-  ): AlbBundle {
+    opts: { vpc: ec2.IVpc; prefixListId: string; primaryTg: elbv2.IApplicationTargetGroup; peerTg?: elbv2.IApplicationTargetGroup },
+  ): { alb: elbv2.ApplicationLoadBalancer; listener: elbv2.ApplicationListener; secret: string } {
     const albSg = new ec2.SecurityGroup(this, `${workload}AlbSg`, {
       vpc: opts.vpc,
       allowAllOutbound: true,
       securityGroupName: `bg-alb-${workload}-${this.color}-sg`,
       description: `ALB ${workload} ${this.color} SG`,
     });
-
     new ec2.CfnSecurityGroupIngress(this, `${workload}AlbIngress`, {
       groupId: albSg.securityGroupId,
       ipProtocol: 'tcp',
@@ -113,19 +164,6 @@ export class BgTestComputeStack extends cdk.Stack {
     cdk.Tags.of(alb).add('Name', `bg-alb-${workload}-${this.color}`);
     Object.entries(commonTags()).forEach(([k, v]) => cdk.Tags.of(alb).add(k, v));
 
-    const tg = new elbv2.ApplicationTargetGroup(this, `${workload}Tg`, {
-      vpc: opts.vpc,
-      port: opts.tgPort,
-      protocol: elbv2.ApplicationProtocol.HTTP,
-      targetType: opts.tgType,
-      healthCheck: {
-        path: '/health',
-        port: opts.tgType === elbv2.TargetType.INSTANCE ? 'traffic-port' : String(opts.tgPort),
-        healthyHttpCodes: '200',
-        interval: cdk.Duration.seconds(30),
-      },
-    });
-
     const listener = alb.addListener(`${workload}Listener`, {
       port: 80,
       protocol: elbv2.ApplicationProtocol.HTTP,
@@ -136,18 +174,40 @@ export class BgTestComputeStack extends cdk.Stack {
     });
 
     const secret = `bg-${this.color}-${workload}-${this.account}-${cdk.Names.uniqueId(this).slice(-6)}`;
-    listener.addAction(`${workload}Forward`, {
+    // Use L1 CfnListenerRule (instead of listener.addAction) to avoid CDK's automatic
+    // service↔listener-rule dependency. The auto-dep would cause a cross-stack cycle:
+    //   Blue rule references Green TG → Blue Stack depends on Green Stack
+    //   Green Service auto-deps on listener rule referencing its TG → Green Stack depends on Blue Stack
+    // L1 rule only references TG ARNs (strings) — no service-level dep is added.
+    const ruleTargetGroups = [
+      { targetGroupArn: opts.primaryTg.targetGroupArn, weight: 100 },
+    ];
+    if (opts.peerTg) {
+      ruleTargetGroups.push({ targetGroupArn: opts.peerTg.targetGroupArn, weight: 0 });
+    }
+    new elbv2.CfnListenerRule(this, `${workload}ForwardRule`, {
+      listenerArn: listener.listenerArn,
       priority: 1,
-      conditions: [elbv2.ListenerCondition.httpHeader('X-Custom-Secret', [secret])],
-      action: elbv2.ListenerAction.forward([tg]),
+      conditions: [{
+        field: 'http-header',
+        httpHeaderConfig: {
+          httpHeaderName: 'X-Custom-Secret',
+          values: [secret],
+        },
+      }],
+      actions: [{
+        type: 'forward',
+        forwardConfig: {
+          targetGroups: ruleTargetGroups,
+        },
+      }],
     });
 
-    return { alb, listener, tg, secret };
+    return { alb, listener, secret };
   }
 
-  private attachEc2Asg(bundle: AlbBundle, props: BgTestComputeStackProps) {
+  private attachEc2Asg(props: BgTestComputeStackProps) {
     const vpc = props.networkStack.vpc;
-
     const role = new iam.Role(this, 'Ec2AsgRole', {
       assumedBy: new iam.ServicePrincipal('ec2.amazonaws.com'),
       managedPolicies: [
@@ -162,7 +222,10 @@ export class BgTestComputeStack extends cdk.Stack {
       vpc, allowAllOutbound: true,
       securityGroupName: `bg-ec2asg-${this.color}-sg`,
     });
-    sg.addIngressRule(bundle.alb.connections.securityGroups[0], ec2.Port.tcp(80), 'ALB to instance');
+    // Accept ALB traffic from anywhere within the VPC (Blue ALB is in public subnet, primary CIDR;
+    // secondary CIDR may host another ALB later). Both VPC CIDRs are trusted (lab environment).
+    sg.addIngressRule(ec2.Peer.ipv4(LAB_CONFIG.vpc.primaryCidr), ec2.Port.tcp(80), 'ALB → instance from primary VPC CIDR');
+    sg.addIngressRule(ec2.Peer.ipv4(LAB_CONFIG.vpc.secondaryCidr), ec2.Port.tcp(80), 'ALB → instance from secondary VPC CIDR');
     props.dataStack.dbSecurityGroup.addIngressRule(sg, ec2.Port.tcp(3306), 'EC2 ASG to Aurora', true);
     props.dataStack.redisSecurityGroup.addIngressRule(sg, ec2.Port.tcp(6379), 'EC2 ASG to Redis', true);
 
@@ -202,15 +265,11 @@ export class BgTestComputeStack extends cdk.Stack {
       healthCheck: autoscaling.HealthCheck.elb({ grace: cdk.Duration.minutes(5) }),
       autoScalingGroupName: `bg-ec2asg-${this.color}`,
     });
-    bundle.tg.addTarget(asg);
+    this.ec2AsgTg.addTarget(asg);
   }
 
-  private attachEcsEc2(bundle: AlbBundle, props: BgTestComputeStackProps) {
+  private attachEcsEc2(props: BgTestComputeStackProps, manageAssoc: boolean) {
     const vpc = props.networkStack.vpc;
-    // Import the cluster locally with hasEc2Capacity=true so the Ec2Service
-    // validation accepts it (the original cluster was created in another stack
-    // and has _hasEc2Capacity=false; using the imported reference here also
-    // avoids cross-stack cycles when associating capacity providers).
     const cluster = ecs.Cluster.fromClusterAttributes(this, 'ImportedCluster', {
       clusterName: props.clusterStack.cluster.clusterName,
       clusterArn: props.clusterStack.cluster.clusterArn,
@@ -230,7 +289,8 @@ export class BgTestComputeStack extends cdk.Stack {
     const hostSg = new ec2.SecurityGroup(this, 'EcsHostSg', {
       vpc, allowAllOutbound: true, securityGroupName: `bg-ecsec2-host-${this.color}-sg`,
     });
-    hostSg.addIngressRule(bundle.alb.connections.securityGroups[0], ec2.Port.tcpRange(32768, 65535), 'ALB to ECS host dynamic ports');
+    hostSg.addIngressRule(ec2.Peer.ipv4(LAB_CONFIG.vpc.primaryCidr), ec2.Port.tcpRange(32768, 65535), 'ALB → ECS host dynamic ports (primary CIDR)');
+    hostSg.addIngressRule(ec2.Peer.ipv4(LAB_CONFIG.vpc.secondaryCidr), ec2.Port.tcpRange(32768, 65535), 'ALB → ECS host dynamic ports (secondary CIDR)');
     props.dataStack.dbSecurityGroup.addIngressRule(hostSg, ec2.Port.tcp(3306), 'ECS-EC2 to Aurora', true);
     props.dataStack.redisSecurityGroup.addIngressRule(hostSg, ec2.Port.tcp(6379), 'ECS-EC2 to Redis', true);
 
@@ -261,19 +321,24 @@ export class BgTestComputeStack extends cdk.Stack {
       enableManagedScaling: true,
       targetCapacityPercent: 100,
     });
-    // Associate capacity provider with the cluster via CFN-level resource scoped
-    // in this stack to avoid cross-stack cyclic dependencies that would arise
-    // if `cluster.addAsgCapacityProvider(cp)` mutated the Cluster stack.
-    new ecs.CfnClusterCapacityProviderAssociations(this, 'EcsCpAssoc', {
-      cluster: cluster.clusterName,
-      capacityProviders: [cp.capacityProviderName, 'FARGATE', 'FARGATE_SPOT'],
-      defaultCapacityProviderStrategy: [
-        { capacityProvider: cp.capacityProviderName, weight: 1 },
-      ],
-    });
 
-    // Task role intentionally has no policies: the app communicates only with Aurora (TCP/3306)
-    // and Redis (TCP/6379) via VPC, no AWS SDK calls from container runtime.
+    if (manageAssoc) {
+      // Cluster's CapacityProviderAssociations is unique per-cluster: only Blue creates it.
+      // Blue's list always includes its own EC2 CP + FARGATE + FARGATE_SPOT, plus Green's CP
+      // when peerStack is set so Green's services can use ec2-cp-green.
+      const cps = [cp.capacityProviderName, 'FARGATE', 'FARGATE_SPOT'];
+      if (props.peerStack) {
+        cps.push(props.peerStack.capacityProviderName);
+      }
+      new ecs.CfnClusterCapacityProviderAssociations(this, 'EcsCpAssoc', {
+        cluster: cluster.clusterName,
+        capacityProviders: cps,
+        defaultCapacityProviderStrategy: [
+          { capacityProvider: cp.capacityProviderName, weight: 1 },
+        ],
+      });
+    }
+
     const taskRole = new iam.Role(this, 'EcsEc2TaskRole', { assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com') });
     const execRole = new iam.Role(this, 'EcsEc2ExecRole', {
       assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
@@ -290,7 +355,6 @@ export class BgTestComputeStack extends cdk.Stack {
     const logs1 = new logs.LogGroup(this, 'EcsEc2Logs', { logGroupName: `/ecs/bg-ecsec2-${this.color}`, retention: logs.RetentionDays.ONE_WEEK, removalPolicy: cdk.RemovalPolicy.DESTROY });
     const container = td.addContainer('app', {
       image: ecs.ContainerImage.fromEcrRepository(props.ecrStack.repository, this.imageTag),
-      // 1 GiB per task allows ~14 tasks per t4g.xlarge (16 GiB) host while leaving headroom for ECS agent + system
       memoryLimitMiB: 1024,
       essential: true,
       logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'app', logGroup: logs1 }),
@@ -304,22 +368,21 @@ export class BgTestComputeStack extends cdk.Stack {
       capacityProviderStrategies: [{ capacityProvider: cp.capacityProviderName, weight: 1 }],
       serviceName: `bg-ecsec2-${this.color}`,
     });
-    bundle.tg.addTarget(svc.loadBalancerTarget({ containerName: 'app', containerPort: LAB_CONFIG.compute.appPort }));
+    this.ecsEc2Tg.addTarget(svc.loadBalancerTarget({ containerName: 'app', containerPort: LAB_CONFIG.compute.appPort }));
   }
 
-  private attachEcsFargate(bundle: AlbBundle, props: BgTestComputeStackProps) {
+  private attachEcsFargate(props: BgTestComputeStackProps) {
     const vpc = props.networkStack.vpc;
     const cluster = props.clusterStack.cluster;
 
     const sg = new ec2.SecurityGroup(this, 'EcsFgSg', {
       vpc, allowAllOutbound: true, securityGroupName: `bg-ecsfg-task-${this.color}-sg`,
     });
-    sg.addIngressRule(bundle.alb.connections.securityGroups[0], ec2.Port.tcp(LAB_CONFIG.compute.appPort), 'ALB to Fargate task');
+    sg.addIngressRule(ec2.Peer.ipv4(LAB_CONFIG.vpc.primaryCidr), ec2.Port.tcp(LAB_CONFIG.compute.appPort), 'ALB → Fargate task (primary CIDR)');
+    sg.addIngressRule(ec2.Peer.ipv4(LAB_CONFIG.vpc.secondaryCidr), ec2.Port.tcp(LAB_CONFIG.compute.appPort), 'ALB → Fargate task (secondary CIDR)');
     props.dataStack.dbSecurityGroup.addIngressRule(sg, ec2.Port.tcp(3306), 'Fargate to Aurora', true);
     props.dataStack.redisSecurityGroup.addIngressRule(sg, ec2.Port.tcp(6379), 'Fargate to Redis', true);
 
-    // Task role intentionally has no policies: the app communicates only with Aurora (TCP/3306)
-    // and Redis (TCP/6379) via VPC, no AWS SDK calls from container runtime.
     const taskRole = new iam.Role(this, 'EcsFgTaskRole', { assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com') });
     const execRole = new iam.Role(this, 'EcsFgExecRole', {
       assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
@@ -353,7 +416,7 @@ export class BgTestComputeStack extends cdk.Stack {
       assignPublicIp: false,
       serviceName: `bg-ecsfg-${this.color}`,
     });
-    svc.attachToApplicationTargetGroup(bundle.tg);
+    svc.attachToApplicationTargetGroup(this.ecsFgTg);
   }
 
   private appEnvironment(props: BgTestComputeStackProps, computeType: string): Record<string, string> {

@@ -29,25 +29,42 @@ const cluster = new BgTestClusterStack(app, 'BgTestClusterStack', { env, network
 data.addDependency(network);
 cluster.addDependency(network);
 
-const blue = new BgTestComputeStack(app, 'BgTestBlueStack', {
-  env, color: 'blue', computeSubnetGroup: 'private1',
-  networkStack: network, dataStack: data, ecrStack: ecr, clusterStack: cluster,
-  cloudFrontPrefixListId,
-});
-blue.addDependency(network); blue.addDependency(data); blue.addDependency(ecr); blue.addDependency(cluster);
-
+// Green stack defined first (Blue receives Green's TGs/CP via peerStack reference).
+// Green: TGs + ASGs + ECS services in private-2 (NO ALBs, NO cluster CP association).
 let green: BgTestComputeStack | undefined;
 if (includeGreen) {
   green = new BgTestComputeStack(app, 'BgTestGreenStack', {
     env, color: 'green', computeSubnetGroup: 'private2',
     networkStack: network, dataStack: data, ecrStack: ecr, clusterStack: cluster,
     cloudFrontPrefixListId,
+    manageAlb: false,
+    manageClusterAssociation: false,
   });
-  green.addDependency(network); green.addDependency(data); green.addDependency(ecr); green.addDependency(cluster);
+  green.addDependency(network);
+  green.addDependency(data);
+  green.addDependency(ecr);
+  green.addDependency(cluster);
 }
+
+// Blue stack: ALBs + listener rules with weighted forward to Blue TGs (and Green TGs if peer set).
+// Blue: TGs + ALBs + ASGs + ECS services in private-1 + cluster CP association (incl. Green CP if peer).
+const blue = new BgTestComputeStack(app, 'BgTestBlueStack', {
+  env, color: 'blue', computeSubnetGroup: 'private1',
+  networkStack: network, dataStack: data, ecrStack: ecr, clusterStack: cluster,
+  cloudFrontPrefixListId,
+  manageAlb: true,
+  manageClusterAssociation: true,
+  peerStack: green,
+});
+blue.addDependency(network);
+blue.addDependency(data);
+blue.addDependency(ecr);
+blue.addDependency(cluster);
+// blue.addDependency(green) is NOT set — the L1 CfnListenerRule references Green TG ARN
+// via cross-stack export/import, which CDK handles with the correct dependency direction
+// automatically without creating a cycle.
 
 const cf = new BgTestCfStack(app, 'BgTestCfStack', { env, activeColor, blueStack: blue, greenStack: green });
 cf.addDependency(blue);
-if (green) cf.addDependency(green);
 
 app.synth();
