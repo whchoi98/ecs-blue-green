@@ -40,7 +40,7 @@ export class BgTestNetworkStack extends cdk.Stack {
     this.private3Subnets = this.vpc.selectSubnets({ subnetGroupName: 'private3' }).subnets;
     this.dbSubnets       = this.vpc.selectSubnets({ subnetGroupName: 'db' }).subnets;
     this.private2Subnets = props.includeSecondaryCidr
-      ? this.buildSecondaryCidrSubnets()
+      ? this.buildPrivate2Subnets()
       : [];
 
     this.addVpcEndpoints();
@@ -51,13 +51,27 @@ export class BgTestNetworkStack extends cdk.Stack {
     });
   }
 
-  private buildSecondaryCidrSubnets(): ec2.ISubnet[] {
+  /**
+   * Builds the demo prep step that scenario 2 toggles via `includeSecondaryCidr`:
+   *   1. Adds 10.2.0.0/16 association to the VPC — purely a *demonstration* of CIDR
+   *      expansion. No subnets, no resources are placed there.
+   *   2. Carves out two /22 subnets in the *primary* CIDR free space (10.1.8+)
+   *      where the Green compute will actually live.
+   *
+   * The two are intentionally split: the secondary CIDR demo and the Green migration
+   * subnets are different concepts — keeping them visually together makes the
+   * scenario 2 → 3 narrative obvious without coupling the deploy to the demo CIDR.
+   */
+  private buildPrivate2Subnets(): ec2.ISubnet[] {
     const cfg = LAB_CONFIG.vpc;
-    const cidrAssoc = new ec2.CfnVPCCidrBlock(this, 'SecondaryCidr', {
+
+    // Demo only — secondary CIDR association with no subnets/resources.
+    new ec2.CfnVPCCidrBlock(this, 'SecondaryCidr', {
       vpcId: this.vpc.vpcId,
       cidrBlock: cfg.secondaryCidr,
     });
 
+    // Green compute /22 subnets — live in PRIMARY CIDR, not secondary.
     const azs = cdk.Stack.of(this).availabilityZones.slice(0, 2);
     const newSubnets: ec2.ISubnet[] = [];
     azs.forEach((az, i) => {
@@ -67,7 +81,6 @@ export class BgTestNetworkStack extends cdk.Stack {
         cidrBlock: i === 0 ? cfg.subnets.private2.cidrA : cfg.subnets.private2.cidrB,
         mapPublicIpOnLaunch: false,
       });
-      subnet.node.addDependency(cidrAssoc);
       cdk.Tags.of(subnet).add('Name', `bg-private2-${az.slice(-1)}`);
 
       const natGw = this.vpc.publicSubnets[i].node.tryFindChild('NATGateway') as ec2.CfnNatGateway | undefined;

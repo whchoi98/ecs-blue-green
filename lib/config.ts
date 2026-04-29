@@ -18,11 +18,14 @@ export interface LabConfig {
      *   - `private3` → reserved for future workloads
      *   - `db`       → Aurora subnet group (isolated, no NAT egress)
      * Identify subnets in the AWS console via the tag `aws-cdk:subnet-group-name`.
-     * Only `private2` (in the secondary CIDR) is explicitly declared below because it
-     * lives outside the auto-allocation range and uses the larger /22 mask.
+     * `private2` (Green compute /22) is carved manually from primary CIDR free space
+     * because it uses a larger mask than the auto allocator.
+     *
+     * Secondary CIDR (10.2.0.0/16) is added by scenario 2 as a *demo* of VPC CIDR
+     * expansion and holds no resources — Green compute lives entirely in primary CIDR.
      */
     subnets: {
-      /** Private subnet 2 (/22, in VPC secondary CIDR 10.2.0.0/16) — migration target for Green compute when private1 IPs are exhausted. */
+      /** Private subnet 2 (/22, carved from primary CIDR free space 10.1.8+) — Green compute migration target. */
       private2: SubnetCidrPair;
     };
   };
@@ -61,7 +64,7 @@ export const LAB_CONFIG: LabConfig = {
     primaryCidr: '10.1.0.0/16',
     secondaryCidr: '10.2.0.0/16',
     subnets: {
-      private2: { cidrA: '10.2.0.0/22', cidrB: '10.2.4.0/22' },
+      private2: { cidrA: '10.1.8.0/22', cidrB: '10.1.12.0/22' },
     },
   },
   compute: {

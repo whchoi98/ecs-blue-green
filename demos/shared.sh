@@ -107,3 +107,45 @@ fetch_cf_url() {
     --query "Stacks[0].Outputs[?OutputKey=='CfDomain'].OutputValue" --output text 2>/dev/null \
     || echo "(not deployed)"
 }
+
+# ALB ARN cache for fast weight changes — populated by discover_alb_arns(),
+# consumed by apply_weights_cached(). Keys: workload (ec2asg|ecsec2|ecsfg).
+# Value format: "rule_arn|blue_tg_arn|green_tg_arn"
+declare -A ALB_INFO
+
+# Discover ALB rule + Blue/Green TG ARNs for all 3 workloads in one shot.
+# Caches into ALB_INFO so subsequent apply_weights_cached() calls only do modify-rule.
+# Returns 0 on success, 1 if any workload's resources are missing.
+discover_alb_arns() {
+  local workload alb_arn listener_arn rule_arn blue_tg green_tg
+  for workload in ec2asg ecsec2 ecsfg; do
+    alb_arn=$(aws elbv2 describe-load-balancers --names "bg-alb-${workload}" \
+      --query "LoadBalancers[0].LoadBalancerArn" --output text 2>/dev/null) || return 1
+    [ -z "$alb_arn" ] || [ "$alb_arn" = "None" ] && return 1
+    listener_arn=$(aws elbv2 describe-listeners --load-balancer-arn "$alb_arn" \
+      --query "Listeners[0].ListenerArn" --output text 2>/dev/null)
+    rule_arn=$(aws elbv2 describe-rules --listener-arn "$listener_arn" \
+      --query "Rules[?Priority=='1'].RuleArn" --output text 2>/dev/null)
+    blue_tg=$(aws elbv2 describe-target-groups --names "bg-tg-${workload}-blue" \
+      --query "TargetGroups[0].TargetGroupArn" --output text 2>/dev/null)
+    green_tg=$(aws elbv2 describe-target-groups --names "bg-tg-${workload}-green" \
+      --query "TargetGroups[0].TargetGroupArn" --output text 2>/dev/null) || green_tg=""
+    [ -z "$rule_arn" ] || [ "$rule_arn" = "None" ] && return 1
+    [ -z "$blue_tg" ] || [ -z "$green_tg" ] && return 1
+    ALB_INFO[$workload]="${rule_arn}|${blue_tg}|${green_tg}"
+  done
+  return 0
+}
+
+# Apply weights to all 3 ALBs using cached ARNs. Args: blue_pct green_pct.
+# Calls run in parallel (& + wait) so total latency is single-API-call latency.
+apply_weights_cached() {
+  local blue=$1 green=$2 workload rule_arn blue_tg green_tg
+  for workload in ec2asg ecsec2 ecsfg; do
+    IFS='|' read -r rule_arn blue_tg green_tg <<<"${ALB_INFO[$workload]}"
+    aws elbv2 modify-rule --rule-arn "$rule_arn" --actions \
+      "Type=forward,ForwardConfig={TargetGroups=[{TargetGroupArn=${blue_tg},Weight=${blue}},{TargetGroupArn=${green_tg},Weight=${green}}]}" \
+      > /dev/null 2>&1 &
+  done
+  wait
+}

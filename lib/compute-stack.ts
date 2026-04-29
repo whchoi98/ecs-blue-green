@@ -91,7 +91,6 @@ export class BgTestComputeStack extends cdk.Stack {
       vpc, allowAllOutbound: true, securityGroupName: `bg-ec2asg-${this.color}-sg`,
     });
     sg.addIngressRule(ec2.Peer.ipv4(LAB_CONFIG.vpc.primaryCidr), ec2.Port.tcp(80), 'ALB to instance from primary VPC CIDR');
-    sg.addIngressRule(ec2.Peer.ipv4(LAB_CONFIG.vpc.secondaryCidr), ec2.Port.tcp(80), 'ALB to instance from secondary VPC CIDR');
     props.dataStack.dbSecurityGroup.addIngressRule(sg, ec2.Port.tcp(3306), 'EC2 ASG to Aurora', true);
     props.dataStack.redisSecurityGroup.addIngressRule(sg, ec2.Port.tcp(6379), 'EC2 ASG to Redis', true);
 
@@ -162,7 +161,6 @@ export class BgTestComputeStack extends cdk.Stack {
       vpc, allowAllOutbound: true, securityGroupName: `bg-ecsec2-host-${this.color}-sg`,
     });
     hostSg.addIngressRule(ec2.Peer.ipv4(LAB_CONFIG.vpc.primaryCidr), ec2.Port.tcpRange(32768, 65535), 'ALB to ECS host dynamic ports (primary CIDR)');
-    hostSg.addIngressRule(ec2.Peer.ipv4(LAB_CONFIG.vpc.secondaryCidr), ec2.Port.tcpRange(32768, 65535), 'ALB to ECS host dynamic ports (secondary CIDR)');
     props.dataStack.dbSecurityGroup.addIngressRule(hostSg, ec2.Port.tcp(3306), 'ECS-EC2 to Aurora', true);
     props.dataStack.redisSecurityGroup.addIngressRule(hostSg, ec2.Port.tcp(6379), 'ECS-EC2 to Redis', true);
 
@@ -242,7 +240,6 @@ export class BgTestComputeStack extends cdk.Stack {
       vpc, allowAllOutbound: true, securityGroupName: `bg-ecsfg-task-${this.color}-sg`,
     });
     sg.addIngressRule(ec2.Peer.ipv4(LAB_CONFIG.vpc.primaryCidr), ec2.Port.tcp(LAB_CONFIG.compute.appPort), 'ALB to Fargate task (primary CIDR)');
-    sg.addIngressRule(ec2.Peer.ipv4(LAB_CONFIG.vpc.secondaryCidr), ec2.Port.tcp(LAB_CONFIG.compute.appPort), 'ALB to Fargate task (secondary CIDR)');
     props.dataStack.dbSecurityGroup.addIngressRule(sg, ec2.Port.tcp(3306), 'Fargate to Aurora', true);
     props.dataStack.redisSecurityGroup.addIngressRule(sg, ec2.Port.tcp(6379), 'Fargate to Redis', true);
 
