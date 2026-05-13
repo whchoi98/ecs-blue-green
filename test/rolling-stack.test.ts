@@ -80,4 +80,56 @@ describe('BgTestRollingStack', () => {
     });
     expect(Object.keys(ingresses).length).toBe(1);
   });
+
+  it('creates 1 LaunchTemplate with bg-rolling-lt name', () => {
+    const t = synthRolling({ launchVersion: 'v1' });
+    t.resourceCountIs('AWS::EC2::LaunchTemplate', 1);
+    t.hasResourceProperties('AWS::EC2::LaunchTemplate', {
+      LaunchTemplateName: 'bg-rolling-lt',
+    });
+  });
+
+  it('LaunchTemplate v1 user-data references COLOR=blue and VERSION=v1', () => {
+    const t = synthRolling({ launchVersion: 'v1' });
+    const lts = t.findResources('AWS::EC2::LaunchTemplate');
+    const lt = Object.values(lts)[0] as any;
+    const ud = JSON.stringify(lt.Properties.LaunchTemplateData.UserData);
+    expect(ud).toMatch(/COLOR=blue/);
+    expect(ud).toMatch(/VERSION=v1/);
+  });
+
+  it('LaunchTemplate v2 user-data references COLOR=green and VERSION=v2', () => {
+    const t = synthRolling({ launchVersion: 'v2' });
+    const lts = t.findResources('AWS::EC2::LaunchTemplate');
+    const lt = Object.values(lts)[0] as any;
+    const ud = JSON.stringify(lt.Properties.LaunchTemplateData.UserData);
+    expect(ud).toMatch(/COLOR=green/);
+    expect(ud).toMatch(/VERSION=v2/);
+  });
+
+  it('creates 1 ASG named bg-rolling-ec2asg with desired=4', () => {
+    const t = synthRolling();
+    t.resourceCountIs('AWS::AutoScaling::AutoScalingGroup', 1);
+    t.hasResourceProperties('AWS::AutoScaling::AutoScalingGroup', {
+      AutoScalingGroupName: 'bg-rolling-ec2asg',
+      DesiredCapacity: '4',
+      MinSize: '4',
+      MaxSize: '8',
+    });
+  });
+
+  it('throws when targetSubnet=private2 but no private2 subnets exist', () => {
+    expect(() => {
+      const app = new cdk.App();
+      const env = { account: '123456789012', region: 'ap-northeast-2' };
+      const network = new BgTestNetworkStack(app, 'Net', { env, includeSecondaryCidr: false });
+      const data = new BgTestDataStack(app, 'Data', { env, networkStack: network });
+      const ecr = new BgTestEcrStack(app, 'Ecr', { env });
+      new BgTestRollingStack(app, 'Rolling', {
+        env, networkStack: network, dataStack: data, ecrStack: ecr,
+        cloudFrontPrefixListId: 'pl-22a6434b',
+        launchVersion: 'v2', targetSubnet: 'private2',
+      });
+    }).toThrow(/No subnets/i);
+  });
 });
