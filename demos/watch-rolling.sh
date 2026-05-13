@@ -11,6 +11,8 @@ CF_URL="$(fetch_rolling_cf_url)"
 
 START_EPOCH=$(date +%s)
 TOTAL=0
+LAST_REDIS_HITS="-"
+LAST_DB_PING_MS="-"
 declare -a HISTORY=()
 SPARK_WIDTH=60
 
@@ -84,13 +86,19 @@ draw_tg_health() {
 }
 
 call_one() {
-  local resp ver
+  local resp ver redis db
   resp=$(curl -s --max-time 6 "${CF_URL}/info" 2>/dev/null)
   if echo "$resp" | grep -q '"version"'; then
     ver=$(echo "$resp" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("version","?"))' 2>/dev/null)
+    redis=$(echo "$resp" | python3 -c 'import sys,json;v=json.load(sys.stdin).get("redisHits");print("-" if v is None else v)' 2>/dev/null)
+    db=$(echo "$resp" | python3 -c 'import sys,json;v=json.load(sys.stdin).get("dbPingMs");print("-" if v is None else v)' 2>/dev/null)
   else
     ver="err"
+    redis="-"
+    db="-"
   fi
+  LAST_REDIS_HITS="$redis"
+  LAST_DB_PING_MS="$db"
   HISTORY+=("$ver")
   [ "${#HISTORY[@]}" -gt "$SPARK_WIDTH" ] && HISTORY=("${HISTORY[@]: -$SPARK_WIDTH}")
   TOTAL=$((TOTAL + 1))
@@ -108,6 +116,30 @@ draw_recent() {
     esac
   done
   printf "\n\n"
+}
+
+draw_data_tier() {
+  printf "  %b%s%b\n" "$BOLD$W" "DATA TIER HEALTH" "$RESET"
+  printf "  %b%s%b\n" "$D" "─────────────────────────────────────────────────────────────" "$RESET"
+
+  # Redis — counter-only check (no latency from /info). Counter monotonic = healthy.
+  if [ "$LAST_REDIS_HITS" = "-" ]; then
+    printf "  Redis (visits counter):  %b[ DOWN     ]%b\n" "$BG_R$W$BOLD" "$RESET"
+  else
+    printf "  Redis (visits counter):  %b[ OK       ]%b   hits=%s\n" "$BG_G$W$BOLD" "$RESET" "$LAST_REDIS_HITS"
+  fi
+
+  # Aurora — dbPingMs latency classification
+  if [ "$LAST_DB_PING_MS" = "-" ]; then
+    printf "  Aurora (SELECT NOW()):   %b[ DOWN     ]%b\n" "$BG_R$W$BOLD" "$RESET"
+  elif [ "$LAST_DB_PING_MS" -gt 500 ] 2>/dev/null; then
+    printf "  Aurora (SELECT NOW()):   %b[ DEGRADED ]%b   %sms\n" "$BG_Y$W$BOLD" "$RESET" "$LAST_DB_PING_MS"
+  elif [ "$LAST_DB_PING_MS" -gt 0 ] 2>/dev/null; then
+    printf "  Aurora (SELECT NOW()):   %b[ OK       ]%b   %sms\n" "$BG_G$W$BOLD" "$RESET" "$LAST_DB_PING_MS"
+  else
+    printf "  Aurora (SELECT NOW()):   %b[ OK       ]%b   %sms\n" "$BG_G$W$BOLD" "$RESET" "$LAST_DB_PING_MS"
+  fi
+  echo
 }
 
 draw_invariant() {
@@ -129,6 +161,7 @@ while true; do
   draw_refresh_progress
   draw_inventory
   draw_tg_health
+  draw_data_tier
   draw_recent
   draw_invariant
   sleep "$INTERVAL"
