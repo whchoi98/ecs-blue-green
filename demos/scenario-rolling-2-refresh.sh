@@ -3,7 +3,11 @@
 # Usage: ./scenario-rolling-2-refresh.sh [min_healthy_pct]   # default 50
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 source "$SCRIPT_DIR/shared.sh"
+
+cd "$ROOT_DIR"
+ensure_npm_deps || exit 1
 
 MIN_HEALTHY="${1:-50}"
 

@@ -2,7 +2,11 @@
 # Phase 1 — Initial Rolling deploy (v1 image @ private1 subnets)
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 source "$SCRIPT_DIR/shared.sh"
+
+cd "$ROOT_DIR"
+ensure_npm_deps || exit 1
 
 print_step 1 5 "Phase 1 — Initial Rolling Deploy (v1 @ private1)"
 echo "  ${D}Creates ALB, ASG (4 in-service), Warm Pool (4 stopped), CloudFront.${RESET}"

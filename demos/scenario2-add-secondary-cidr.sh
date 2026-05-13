@@ -6,6 +6,8 @@ source "$SCRIPT_DIR/shared.sh"
 
 cd "$ROOT_DIR"
 
+ensure_npm_deps || exit 1
+
 # ── Banner ──
 clear
 echo

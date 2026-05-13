@@ -236,3 +236,24 @@ fetch_rolling_cf_url() {
     echo "$out"
   fi
 }
+
+# Ensure node_modules is installed before running CDK (ts-node needs aws-cdk-lib + @types/node).
+# Idempotent: skips if aws-cdk-lib is already present. Returns 1 on install failure.
+ensure_npm_deps() {
+  local repo_root
+  repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+  if [ -d "${repo_root}/node_modules/aws-cdk-lib" ]; then
+    printf "  %b✓%b dependencies present (node_modules/aws-cdk-lib)\n" "$G" "$RESET"
+    return 0
+  fi
+
+  printf "  %b⚠%b node_modules/aws-cdk-lib not found — running 'npm install'...\n" "$Y" "$RESET"
+  if ( cd "$repo_root" && npm install ); then
+    printf "  %b✓%b dependencies installed\n" "$G" "$RESET"
+    return 0
+  else
+    printf "  %b✗%b npm install failed — fix and retry\n" "$R" "$RESET"
+    return 1
+  fi
+}
