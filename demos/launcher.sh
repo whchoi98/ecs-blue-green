@@ -27,6 +27,9 @@ LOGO
   hr '=' "$W$BOLD"
   printf "  %bCF URL%b  : %s\n" "$BOLD" "$RESET" "$cf"
   printf "  %bWeights%b : %s\n" "$BOLD" "$RESET" "$weights"
+  local rolling_cf
+  rolling_cf=$(fetch_rolling_cf_url)
+  printf "  %bRollingCF%b: %s\n" "$BOLD" "$RESET" "$rolling_cf"
   hr '=' "$W$BOLD"
   echo
 
@@ -42,6 +45,12 @@ LOGO
   echo
   printf '  %bObservability%b\n' "$D$BOLD" "$RESET"
   printf '  %b%b [7] %b  %bWatch Traffic Monitor%b            %b(별도 터미널 권장)%b\n' "$BOLD" "$BG_D$W" "$RESET" "$W$BOLD" "$RESET" "$D" "$RESET"
+  echo
+  printf '  %bEC2 ASG Rolling Demo (Warm Pool)%b\n' "$D$BOLD" "$RESET"
+  printf '  %b%b [R1] %b  %bDeploy Rolling%b                  %b(v1 @ private1)%b\n' "$BOLD" "$BG_C$W" "$RESET" "$W$BOLD" "$RESET" "$D" "$RESET"
+  printf '  %b%b [R2] %b  %bInstance Refresh%b                %b./scenario-rolling-2-refresh.sh [pct]%b\n' "$BOLD" "$BG_G$W" "$RESET" "$W$BOLD" "$RESET" "$D" "$RESET"
+  printf '  %b%b [R3] %b  %bRollback%b                        %b./scenario-rolling-3-rollback.sh [pct]%b\n' "$BOLD" "$BG_Y$W" "$RESET" "$W$BOLD" "$RESET" "$D" "$RESET"
+  printf '  %b%b [W] %b   %bWatch Rolling Progress%b          %b(separate terminal)%b\n' "$BOLD" "$BG_M$W" "$RESET" "$W$BOLD" "$RESET" "$D" "$RESET"
   echo
   printf '  %b [q] %b  Quit\n' "$BG_R$W$BOLD" "$RESET"
   echo
@@ -61,7 +70,7 @@ run_scenario() {
 trap 'echo; exit 0' INT
 while true; do
   draw_menu
-  printf '  %bSelect [1-7, q]: %b ' "$W$BOLD" "$RESET"
+  printf '  %bSelect [1-7, R1-R3, W, q]: %b ' "$W$BOLD" "$RESET"
   read -r choice
   case "$choice" in
     1) run_scenario "scenario1-deploy-blue.sh" ;;
@@ -71,6 +80,10 @@ while true; do
     5) run_scenario "scenario-slider.sh" ;;
     6) run_scenario "scenario4-rollback-to-blue.sh" ;;
     7) run_scenario "watch-bluegreen-traffic.sh" ;;
+    R1|r1) run_scenario "scenario-rolling-1-deploy.sh" ;;
+    R2|r2) run_scenario "scenario-rolling-2-refresh.sh" ;;
+    R3|r3) run_scenario "scenario-rolling-3-rollback.sh" ;;
+    W|w)   run_scenario "watch-rolling.sh" ;;
     q|Q) echo; exit 0 ;;
     *) echo "Invalid"; sleep 1 ;;
   esac
