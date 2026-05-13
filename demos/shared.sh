@@ -149,3 +149,90 @@ apply_weights_cached() {
   done
   wait
 }
+
+# ─── Rolling demo helpers (additive; existing functions untouched) ────────────
+
+# Returns: "Status|PercentageComplete|StartTime|MinHealthy=N"
+# Empty if no refresh history.
+fetch_rolling_refresh_status() {
+  aws autoscaling describe-instance-refreshes \
+    --auto-scaling-group-name bg-rolling-ec2asg \
+    --max-records 1 \
+    --query 'InstanceRefreshes[0].[Status,PercentageComplete,StartTime,Preferences.MinHealthyPercentage]' \
+    --output text 2>/dev/null \
+    | awk 'NF { printf "%s|%s|%s|MinHealthy=%s\n", $1, $2, $3, $4 }'
+}
+
+# Target health counts for bg-rolling-tg.
+# Returns: "healthy|draining|unhealthy"
+fetch_rolling_tg_health() {
+  local tg_arn
+  tg_arn=$(aws elbv2 describe-target-groups --names bg-rolling-tg \
+    --query 'TargetGroups[0].TargetGroupArn' --output text 2>/dev/null)
+  [ -z "$tg_arn" ] || [ "$tg_arn" = "None" ] && return 1
+  aws elbv2 describe-target-health --target-group-arn "$tg_arn" \
+    --query 'TargetHealthDescriptions[].TargetHealth.State' --output text 2>/dev/null \
+    | tr '\t' '\n' \
+    | awk 'BEGIN {h=0; d=0; u=0}
+           /^healthy$/  { h++ }
+           /^draining$/ { d++ }
+           /^unhealthy$/{ u++ }
+           END { printf "%d|%d|%d\n", h, d, u }'
+}
+
+# 5xx accumulated since given epoch (default: 10 min ago).
+# Returns integer.
+fetch_rolling_5xx() {
+  local since="${1:-$(($(date +%s) - 600))}"
+  local now_iso since_iso alb_arn alb_dim
+  now_iso=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  since_iso=$(date -u -d "@${since}" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -r "${since}" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)
+  alb_arn=$(aws elbv2 describe-load-balancers --names bg-rolling-alb \
+    --query 'LoadBalancers[0].LoadBalancerArn' --output text 2>/dev/null)
+  [ -z "$alb_arn" ] || [ "$alb_arn" = "None" ] && { echo 0; return; }
+  alb_dim=$(echo "$alb_arn" | sed -E 's|^.*loadbalancer/||')
+  aws cloudwatch get-metric-statistics \
+    --namespace AWS/ApplicationELB \
+    --metric-name HTTPCode_Target_5XX_Count \
+    --dimensions Name=LoadBalancer,Value="$alb_dim" \
+    --statistics Sum --period 60 \
+    --start-time "$since_iso" --end-time "$now_iso" \
+    --query 'sum(Datapoints[].Sum)' --output text 2>/dev/null \
+    | awk '{ printf "%d\n", $1 + 0 }'
+}
+
+# Subnet ID → "Name" tag (cached). Falls back to subnet ID if no tag.
+declare -A _SUBNET_LABEL_CACHE
+map_subnet_to_label() {
+  local sid="$1"
+  if [ -z "${_SUBNET_LABEL_CACHE[$sid]:-}" ]; then
+    local label
+    label=$(aws ec2 describe-subnets --subnet-ids "$sid" \
+      --query 'Subnets[0].Tags[?Key==`Name`].Value | [0]' --output text 2>/dev/null)
+    [ -z "$label" ] || [ "$label" = "None" ] && label="$sid"
+    _SUBNET_LABEL_CACHE[$sid]="$label"
+  fi
+  printf '%s' "${_SUBNET_LABEL_CACHE[$sid]}"
+}
+
+# v1 → blue, v2 → green.
+map_lt_version_to_color() {
+  case "$1" in
+    v1|1) echo "blue" ;;
+    v2|2) echo "green" ;;
+    *)    echo "unknown" ;;
+  esac
+}
+
+# Returns "https://...cloudfront.net" or "(not deployed)".
+fetch_rolling_cf_url() {
+  local out
+  out=$(aws cloudformation describe-stacks --stack-name BgTestRollingCfStack \
+    --query 'Stacks[0].Outputs[?ExportName==`BgRollingCfDomain`].OutputValue | [0]' \
+    --output text 2>/dev/null)
+  if [ -z "$out" ] || [ "$out" = "None" ]; then
+    echo "(not deployed)"
+  else
+    echo "$out"
+  fi
+}
