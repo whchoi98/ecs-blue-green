@@ -72,4 +72,12 @@ describe('BgTestRollingStack', () => {
     const tgs = r.Properties.Actions[0].ForwardConfig.TargetGroups;
     expect(tgs).toHaveLength(1);
   });
+
+  it('ALB SG has CfnSecurityGroupIngress from CloudFront prefix list only', () => {
+    const t = synthRolling();
+    const ingresses = t.findResources('AWS::EC2::SecurityGroupIngress', {
+      Properties: { SourcePrefixListId: 'pl-22a6434b', FromPort: 80, ToPort: 80 },
+    });
+    expect(Object.keys(ingresses).length).toBe(1);
+  });
 });

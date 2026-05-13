@@ -31,6 +31,15 @@ export class BgTestRollingStack extends cdk.Stack {
       description: 'Rolling ALB SG',
     });
 
+    new ec2.CfnSecurityGroupIngress(this, 'RollingAlbIngress', {
+      groupId: albSg.securityGroupId,
+      ipProtocol: 'tcp',
+      fromPort: 80,
+      toPort: 80,
+      sourcePrefixListId: props.cloudFrontPrefixListId,
+      description: 'HTTP from CloudFront origin-facing only',
+    });
+
     const alb = new elbv2.ApplicationLoadBalancer(this, 'RollingAlb', {
       vpc, internetFacing: true,
       securityGroup: albSg,
