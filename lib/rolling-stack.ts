@@ -7,7 +7,7 @@ import * as iam from 'aws-cdk-lib/aws-iam';
 import { BgTestNetworkStack } from './network-stack';
 import { BgTestDataStack } from './data-stack';
 import { BgTestEcrStack } from './ecr-stack';
-import { LAB_CONFIG } from './config';
+import { LAB_CONFIG, commonTags } from './config';
 
 export interface BgTestRollingStackProps extends cdk.StackProps {
   networkStack: BgTestNetworkStack;
@@ -180,5 +180,16 @@ export class BgTestRollingStack extends cdk.Stack {
     this.tg = tg;
     this.secret = secret;
     this.albSg = albSg;
+
+    Object.entries(commonTags()).forEach(([k, v]) => cdk.Tags.of(this).add(k, v));
+
+    new cdk.CfnOutput(this, 'RollingAlbDns', {
+      value: alb.loadBalancerDnsName,
+      exportName: 'BgRollingAlb-Dns',
+    });
+    new cdk.CfnOutput(this, 'RollingSecret', {
+      value: secret,
+      exportName: 'BgRollingAlb-Secret',
+    });
   }
 }

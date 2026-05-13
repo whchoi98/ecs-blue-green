@@ -159,4 +159,10 @@ describe('BgTestRollingStack', () => {
       });
     }).toThrow(/No subnets/i);
   });
+
+  it('exports CfnOutput RollingAlbDns and RollingSecret', () => {
+    const t = synthRolling();
+    t.hasOutput('RollingAlbDns', { Export: { Name: 'BgRollingAlb-Dns' } });
+    t.hasOutput('RollingSecret', { Export: { Name: 'BgRollingAlb-Secret' } });
+  });
 });
