@@ -5,6 +5,7 @@ const mysql = require('mysql2/promise');
 
 const COLOR = process.env.COLOR ?? 'blue';
 const COMPUTE_TYPE = process.env.COMPUTE_TYPE ?? 'unknown';
+const VERSION = process.env.VERSION ?? COLOR;
 const REDIS_URL = process.env.REDIS_URL ?? '';
 const DB_HOST = process.env.DB_HOST ?? '';
 const DB_USER = process.env.DB_USER ?? 'admin';
@@ -52,7 +53,7 @@ function createApp() {
       }
     } catch (_) {}
     res.json({
-      color: COLOR, compute: COMPUTE_TYPE,
+      color: COLOR, version: VERSION, compute: COMPUTE_TYPE,
       hostname: os.hostname(), redisHits, dbPingMs,
     });
   });
