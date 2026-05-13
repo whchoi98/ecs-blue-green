@@ -10,10 +10,10 @@ describe('LAB_CONFIG', () => {
     expect(LAB_CONFIG.vpc.secondaryCidr).toBe('10.2.0.0/16');
   });
 
-  it('defines private2 in secondary CIDR with /22 size (only explicit subnet — others auto-allocated)', () => {
+  it('defines private2 in primary CIDR with /22 size (only explicit subnet — others auto-allocated)', () => {
     const private2 = LAB_CONFIG.vpc.subnets.private2;
-    expect(private2.cidrA).toBe('10.2.0.0/22');
-    expect(private2.cidrB).toBe('10.2.4.0/22');
+    expect(private2.cidrA).toBe('10.1.8.0/22');
+    expect(private2.cidrB).toBe('10.1.12.0/22');
   });
 
   it('uses Graviton instance types', () => {

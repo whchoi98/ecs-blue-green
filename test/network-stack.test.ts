@@ -42,10 +42,10 @@ describe('BgTestNetworkStack subnets', () => {
     t.resourceCountIs('AWS::EC2::Subnet', 10);
   });
 
-  it('private2-a uses 10.2.0.0/22 and private2-b uses 10.2.4.0/22', () => {
+  it('private2-a uses 10.1.8.0/22 and private2-b uses 10.1.12.0/22', () => {
     const t = synth({ includeSecondaryCidr: true });
-    t.hasResourceProperties('AWS::EC2::Subnet', { CidrBlock: '10.2.0.0/22' });
-    t.hasResourceProperties('AWS::EC2::Subnet', { CidrBlock: '10.2.4.0/22' });
+    t.hasResourceProperties('AWS::EC2::Subnet', { CidrBlock: '10.1.8.0/22' });
+    t.hasResourceProperties('AWS::EC2::Subnet', { CidrBlock: '10.1.12.0/22' });
   });
 });
 
