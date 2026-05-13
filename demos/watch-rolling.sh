@@ -86,17 +86,24 @@ draw_tg_health() {
 }
 
 call_one() {
-  local resp ver redis db
-  resp=$(curl -s --max-time 6 "${CF_URL}/info" 2>/dev/null)
-  if echo "$resp" | grep -q '"version"'; then
-    ver=$(echo "$resp" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("version","?"))' 2>/dev/null)
-    redis=$(echo "$resp" | python3 -c 'import sys,json;v=json.load(sys.stdin).get("redisHits");print("-" if v is None else v)' 2>/dev/null)
-    db=$(echo "$resp" | python3 -c 'import sys,json;v=json.load(sys.stdin).get("dbPingMs");print("-" if v is None else v)' 2>/dev/null)
+  local resp_info resp_hit ver db redis
+  resp_info=$(curl -s --max-time 6 "${CF_URL}/info" 2>/dev/null)
+  resp_hit=$(curl -s --max-time 6 "${CF_URL}/redis/hit" 2>/dev/null)
+
+  if echo "$resp_info" | grep -q '"version"'; then
+    ver=$(echo "$resp_info" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("version","?"))' 2>/dev/null)
+    db=$(echo "$resp_info" | python3 -c 'import sys,json;v=json.load(sys.stdin).get("dbPingMs");print("-" if v is None else v)' 2>/dev/null)
   else
     ver="err"
-    redis="-"
     db="-"
   fi
+
+  if echo "$resp_hit" | grep -q '"visits"'; then
+    redis=$(echo "$resp_hit" | python3 -c 'import sys,json;v=json.load(sys.stdin).get("visits");print("-" if v is None else v)' 2>/dev/null)
+  else
+    redis="-"
+  fi
+
   LAST_REDIS_HITS="$redis"
   LAST_DB_PING_MS="$db"
   HISTORY+=("$ver")
