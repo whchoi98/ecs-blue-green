@@ -118,6 +118,23 @@ describe('BgTestRollingStack', () => {
     });
   });
 
+  it('instance SG ingress references ALB SG (SG-to-SG, not CIDR)', () => {
+    const t = synthRolling();
+    // CDK places addIngressRule inline inside AWS::EC2::SecurityGroup, not as a separate
+    // AWS::EC2::SecurityGroupIngress resource, so we inspect the SG directly.
+    const sgs = t.findResources('AWS::EC2::SecurityGroup');
+    const instanceSg = Object.values(sgs).find((sg: any) =>
+      sg.Properties.GroupName === 'bg-rolling-instance-sg'
+    ) as any;
+    expect(instanceSg).toBeDefined();
+    const ingressRules: any[] = instanceSg.Properties.SecurityGroupIngress ?? [];
+    const sgToSg = ingressRules.filter((r: any) =>
+      r.FromPort === 80 && r.ToPort === 80 && r.IpProtocol === 'tcp' &&
+      r.SourceSecurityGroupId !== undefined
+    );
+    expect(sgToSg.length).toBeGreaterThanOrEqual(1);
+  });
+
   it('throws when targetSubnet=private2 but no private2 subnets exist', () => {
     expect(() => {
       const app = new cdk.App();

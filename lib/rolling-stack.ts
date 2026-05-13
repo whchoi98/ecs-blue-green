@@ -102,6 +102,15 @@ export class BgTestRollingStack extends cdk.Stack {
       securityGroupName: 'bg-rolling-instance-sg',
     });
 
+    instanceSg.addIngressRule(
+      ec2.Peer.securityGroupId(albSg.securityGroupId),
+      ec2.Port.tcp(80),
+      'ALB SG to instance:80 (SG-to-SG)',
+    );
+
+    props.dataStack.dbSecurityGroup.addIngressRule(instanceSg, ec2.Port.tcp(3306), 'Rolling instance to Aurora', true);
+    props.dataStack.redisSecurityGroup.addIngressRule(instanceSg, ec2.Port.tcp(6379), 'Rolling instance to Redis', true);
+
     const role = new iam.Role(this, 'RollingAsgRole', {
       assumedBy: new iam.ServicePrincipal('ec2.amazonaws.com'),
       managedPolicies: [
