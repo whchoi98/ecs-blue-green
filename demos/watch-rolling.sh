@@ -34,6 +34,7 @@ draw_header() {
 draw_refresh_progress() {
   printf "  %b%s%b\n" "$BOLD$W" "INSTANCE REFRESH PROGRESS" "$RESET"
   printf "  %b%s%b\n" "$D" "─────────────────────────────────────────────────────────────" "$RESET"
+  printf "  %bASG 인스턴스 교체 진행 — 새 인스턴스가 launch되고 기존 인스턴스가 종료되는 단계%b\n" "$D" "$RESET"
   local state status pct start_time minhealthy
   state=$(fetch_rolling_refresh_status)
   if [ -z "$state" ]; then
@@ -59,6 +60,7 @@ draw_refresh_progress() {
 draw_inventory() {
   printf "  %b%s%b\n" "$BOLD$W" "INSTANCE INVENTORY" "$RESET"
   printf "  %b%s%b\n" "$D" "─────────────────────────────────────────────────────────────" "$RESET"
+  printf "  %b운영 중 인스턴스(In-Service)와 예열 대기 인스턴스(Warm Pool) 수%b\n" "$D" "$RESET"
   local in_count warm_count
   in_count=$(aws autoscaling describe-auto-scaling-groups \
     --auto-scaling-group-names bg-rolling-ec2asg \
@@ -72,6 +74,7 @@ draw_inventory() {
 draw_tg_health() {
   printf "  %b%s%b\n" "$BOLD$W" "ALB TG HEALTH (bg-rolling-tg)" "$RESET"
   printf "  %b%s%b\n" "$D" "─────────────────────────────────────────────────────────────" "$RESET"
+  printf "  %bALB Target Group에 등록된 인스턴스의 헬스 상태 (healthy / draining / unhealthy)%b\n" "$D" "$RESET"
   local h
   h=$(fetch_rolling_tg_health)
   if [ -z "$h" ]; then
@@ -114,6 +117,7 @@ call_one() {
 draw_recent() {
   printf "  %b%s%b\n" "$BOLD$W" "RECENT CALLS" "$RESET"
   printf "  %b%s%b\n" "$D" "─────────────────────────────────────────────────────────────" "$RESET"
+  printf "  %b최근 호출들이 어느 버전(v1=blue/v2=green)에서 응답되었는지 시계열 표시%b\n" "$D" "$RESET"
   printf "  "
   for v in "${HISTORY[@]}"; do
     case "$v" in
@@ -128,6 +132,7 @@ draw_recent() {
 draw_data_tier() {
   printf "  %b%s%b\n" "$BOLD$W" "DATA TIER HEALTH" "$RESET"
   printf "  %b%s%b\n" "$D" "─────────────────────────────────────────────────────────────" "$RESET"
+  printf "  %bRedis와 Aurora 연결 상태 — 매 호출마다 카운터 +1, SQL 응답 시간 측정%b\n" "$D" "$RESET"
 
   # Redis — counter-only check (no latency from /info). Counter monotonic = healthy.
   if [ "$LAST_REDIS_HITS" = "-" ]; then
@@ -152,6 +157,7 @@ draw_data_tier() {
 draw_invariant() {
   printf "  %b%s%b\n" "$BOLD$W" "INVARIANT — ZERO DOWNTIME EVIDENCE" "$RESET"
   printf "  %b%s%b\n" "$D" "─────────────────────────────────────────────────────────────" "$RESET"
+  printf "  %bRefresh 중 5xx 에러가 0건이어야 한다는 무중단 약속의 라이브 증거%b\n" "$D" "$RESET"
   local fivexx
   fivexx=$(fetch_rolling_5xx "$START_EPOCH")
   if [ "${fivexx:-0}" = "0" ]; then
