@@ -1,0 +1,23 @@
+# False positive samples — these must NOT trigger secret detection.
+
+# Normal base64 strings
+dGhpcyBpcyBhIHRlc3Q=
+SGVsbG8gV29ybGQ=
+
+# Empty/short password fields
+password = ""
+password = 'x'
+password: ''
+
+# Comments mentioning key terms
+# api_key is required for external service
+# Set the API key in your .env file
+
+# Placeholder values in templates
+API_KEY=your_api_key_here
+DB_PASS=changeme
+SECRET=replace_this_value
+
+# CDK resource names that contain key-like patterns
+BgTestNetworkStack
+CloudFrontPrefixListId=pl-22a6434b
