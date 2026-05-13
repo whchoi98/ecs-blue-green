@@ -27,7 +27,7 @@ function synthRolling(opts: {
 }
 
 describe('BgTestRollingStack', () => {
-  test('stack synthesizes without error', () => {
+  it('stack synthesizes without error', () => {
     expect(() => synthRolling()).not.toThrow();
   });
 });
