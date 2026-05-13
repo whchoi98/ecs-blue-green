@@ -165,6 +165,13 @@ export class BgTestRollingStack extends cdk.Stack {
     const cfnAsg = asg.node.defaultChild as autoscaling.CfnAutoScalingGroup;
     cfnAsg.targetGroupArns = [tg.targetGroupArn];
 
+    new autoscaling.CfnWarmPool(this, 'RollingWarmPool', {
+      autoScalingGroupName: asg.autoScalingGroupName,
+      poolState: 'Stopped',
+      maxGroupPreparedCapacity: 4,
+      minSize: 4,
+    });
+
     this.asg = asg;
     this.lt = lt;
     this.instanceSg = instanceSg;

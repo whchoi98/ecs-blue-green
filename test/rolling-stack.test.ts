@@ -135,6 +135,16 @@ describe('BgTestRollingStack', () => {
     expect(sgToSg.length).toBeGreaterThanOrEqual(1);
   });
 
+  it('attaches a Warm Pool with PoolState=Stopped, MaxPrepared=4, MinSize=4', () => {
+    const t = synthRolling();
+    t.resourceCountIs('AWS::AutoScaling::WarmPool', 1);
+    t.hasResourceProperties('AWS::AutoScaling::WarmPool', {
+      PoolState: 'Stopped',
+      MaxGroupPreparedCapacity: 4,
+      MinSize: 4,
+    });
+  });
+
   it('throws when targetSubnet=private2 but no private2 subnets exist', () => {
     expect(() => {
       const app = new cdk.App();
